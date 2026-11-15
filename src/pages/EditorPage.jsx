@@ -707,24 +707,15 @@ export default function EditorPage() {
           </button>
         </div>
 
-        {/* Right: Send & Download (All buttons fit on screen with no overflow) */}
-        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+        {/* Right: Send Snap action */}
+        <div className="flex items-center flex-shrink-0">
           <button
             onClick={() => setShowSendFriendsModal(true)}
-            className="glass-pill h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl text-xs font-bold text-white hover:border-[#FFFC00]/40 flex items-center gap-1.5 active:scale-95 transition-all"
+            className="btn-snap h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs font-bold text-black flex items-center gap-1.5 shadow-md shadow-[#FFFC00]/20 active:scale-95 transition-all"
             title="Send to Friend"
           >
-            <Send className="w-3.5 h-3.5 text-[#FFFC00] flex-shrink-0" />
+            <Send className="w-3.5 h-3.5 text-black flex-shrink-0" />
             <span>Send</span>
-          </button>
-
-          <button
-            onClick={handleDownload}
-            className="btn-snap h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl text-xs font-bold text-black flex items-center gap-1.5 shadow-md shadow-[#FFFC00]/20 active:scale-95 transition-all"
-            title="Download Snap"
-          >
-            <Download className="w-3.5 h-3.5 text-black flex-shrink-0" />
-            <span>Download</span>
           </button>
         </div>
       </header>
