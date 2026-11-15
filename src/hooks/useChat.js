@@ -9,6 +9,11 @@ import {
   replaySnapInCloud,
   markSnapSavedInCloud,
   sendSnapToMultipleFriendsInCloud,
+  fetchQuickAddSuggestionsInCloud,
+  subscribeToIncomingFriendRequestsInCloud,
+  subscribeToSentFriendRequestsInCloud,
+  subscribeToFriendsInCloud,
+  removeFriendInCloud,
   getChatId,
 } from '../services/firebaseService';
 import { useAuth } from '../contexts/AuthContext';
@@ -35,6 +40,9 @@ export function useChat() {
   const { currentUser, isFirebaseConfigured } = useAuth();
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
+  const [sentRequests, setSentRequests] = useState([]);
+  const [quickAddSuggestions, setQuickAddSuggestions] = useState([]);
+  const [isLoadingQuickAdd, setIsLoadingQuickAdd] = useState(false);
   const [activeFriendId, setActiveFriendId] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -87,6 +95,95 @@ export function useChat() {
     }
   };
 
+  // 1b. Subscribe to real-time incoming & sent friend requests, and friends from Firestore
+  useEffect(() => {
+    if (!isFirebaseConfigured || !currentUser) return;
+
+    const unsubIncoming = subscribeToIncomingFriendRequestsInCloud(
+      currentUser.uid,
+      (cloudRequests) => {
+        setFriendRequests(cloudRequests);
+        try {
+          localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(cloudRequests));
+        } catch {}
+      }
+    );
+
+    const unsubSent = subscribeToSentFriendRequestsInCloud(
+      currentUser.uid,
+      (cloudSent) => {
+        setSentRequests(cloudSent);
+      }
+    );
+
+    const unsubFriends = subscribeToFriendsInCloud(
+      currentUser.uid,
+      (cloudFriends) => {
+        if (!cloudFriends || cloudFriends.length === 0) return;
+        setFriends((prev) => {
+          const map = new Map();
+          prev.forEach((f) => map.set(f.id, f));
+          cloudFriends.forEach((cf) => {
+            const existing = map.get(cf.id);
+            map.set(cf.id, {
+              ...cf,
+              messages: existing?.messages || [],
+              lastInteraction: existing?.lastInteraction || 'Friends',
+              lastInteractionTime: existing?.lastInteractionTime || 'Active',
+              unreadCount: existing?.unreadCount || 0,
+            });
+          });
+          const merged = Array.from(map.values());
+          try {
+            localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
+      }
+    );
+
+    return () => {
+      unsubIncoming();
+      unsubSent();
+      unsubFriends();
+    };
+  }, [isFirebaseConfigured, currentUser]);
+
+  // 1c. Load Quick Add Suggestions from Firestore
+  const refreshQuickAdd = useCallback(async () => {
+    if (!isFirebaseConfigured || !currentUser) {
+      setQuickAddSuggestions([]);
+      return;
+    }
+    setIsLoadingQuickAdd(true);
+    try {
+      const suggestions = await fetchQuickAddSuggestionsInCloud(currentUser.uid);
+      setQuickAddSuggestions(suggestions);
+    } catch (e) {
+      console.warn('Quick add load error:', e);
+    } finally {
+      setIsLoadingQuickAdd(false);
+    }
+  }, [isFirebaseConfigured, currentUser]);
+
+  useEffect(() => {
+    refreshQuickAdd();
+  }, [refreshQuickAdd]);
+
+  // Helper to determine friendship / request state with any user
+  const getRequestStatus = useCallback(
+    (userId) => {
+      if (!userId) return 'none';
+      if (friends.some((f) => f.id === userId || f.uid === userId)) return 'friends';
+      if (sentRequests.some((r) => r.receiverId === userId && r.status === 'pending'))
+        return 'requested';
+      if (friendRequests.some((r) => r.senderId === userId && r.status === 'pending'))
+        return 'received';
+      return 'none';
+    },
+    [friends, sentRequests, friendRequests]
+  );
+
   // 2. Real-Time Chat Message Listener via Firestore when connected
   useEffect(() => {
     if (!isFirebaseConfigured || !currentUser || !activeFriendId) return;
@@ -130,7 +227,7 @@ export function useChat() {
     };
   }, [isFirebaseConfigured, currentUser, activeFriendId]);
 
-  // 3. User Search in Firestore
+  // 3. User Search in Firestore (Excludes current user)
   const searchUsers = useCallback(
     async (term) => {
       if (!term || !term.trim()) {
@@ -141,10 +238,9 @@ export function useChat() {
       setIsSearching(true);
       try {
         const queryTerm = term.trim().toLowerCase();
-        // First check Firestore users
         let cloudUsers = [];
         if (isFirebaseConfigured) {
-          cloudUsers = await searchUsersInCloud(queryTerm);
+          cloudUsers = await searchUsersInCloud(queryTerm, currentUser?.uid);
         }
 
         setSearchResults(cloudUsers);
@@ -156,66 +252,88 @@ export function useChat() {
         setIsSearching(false);
       }
     },
-    [isFirebaseConfigured, friends]
+    [isFirebaseConfigured, currentUser]
   );
 
-  // 4. Send Friend Request
+  // 4. Send Friend Request (with duplicate protection)
   const sendFriendRequest = useCallback(
     async (targetUser) => {
-      const newReq = {
+      const targetId = targetUser.id || targetUser.uid;
+      if (!targetId || targetId === currentUser?.uid) {
+        return { success: false, error: 'Cannot send request to yourself.' };
+      }
+
+      // Check if already friends or requested
+      if (friends.some((f) => f.id === targetId || f.uid === targetId)) {
+        return { success: false, error: 'Already friends.' };
+      }
+
+      if (sentRequests.some((r) => r.receiverId === targetId && r.status === 'pending')) {
+        return { success: false, error: 'Friend request already sent.' };
+      }
+
+      // Optimistic update
+      const tempReq = {
         id: 'req_sent_' + Date.now(),
-        receiverId: targetUser.id || targetUser.uid,
-        receiverName: targetUser.name,
+        senderId: currentUser?.uid,
+        receiverId: targetId,
+        receiverName: targetUser.name || targetUser.displayName,
         receiverHandle: targetUser.handle,
-        receiverAvatar: targetUser.avatar,
-        status: 'sent',
+        receiverAvatar: targetUser.avatar || targetUser.photoURL,
+        status: 'pending',
         time: 'Just now',
       };
+      setSentRequests((prev) => [tempReq, ...prev]);
 
-      const updated = [newReq, ...friendRequests];
-      persistRequests(updated);
-
+      let res = { success: true };
       if (isFirebaseConfigured && currentUser) {
-        await sendFriendRequestInCloud({
+        res = await sendFriendRequestInCloud({
           sender: currentUser,
           receiver: targetUser,
         });
+
+        if (!res.success) {
+          // Revert optimistic update
+          setSentRequests((prev) => prev.filter((r) => r.receiverId !== targetId));
+          return res;
+        }
+
+        // Remove from quick add suggestions
+        setQuickAddSuggestions((prev) =>
+          prev.filter((u) => u.id !== targetId && u.uid !== targetId)
+        );
       }
 
-      return newReq;
+      return res;
     },
-    [friendRequests, isFirebaseConfigured, currentUser]
+    [friends, sentRequests, isFirebaseConfigured, currentUser]
   );
 
   // 5. Accept Friend Request
   const acceptFriendRequest = useCallback(
     async (requestId) => {
       const req = friendRequests.find((r) => r.id === requestId);
-      if (!req) return;
+      if (!req) return { success: false };
 
-      // Add to friends list
+      const senderId = req.senderId;
       const newFriend = {
-        id: req.senderId || 'friend_' + Date.now(),
+        id: senderId,
+        uid: senderId,
         name: req.senderName || 'New Friend',
         handle: req.senderHandle || 'user',
-        avatar: req.senderAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+        avatar:
+          req.senderAvatar ||
+          `https://api.dicebear.com/7.x/bottts/svg?seed=${senderId}`,
         streak: 1,
         snapScore: 500,
         lastInteraction: 'Added Friend',
         lastInteractionTime: 'Just now',
         unreadCount: 0,
         status: 'opened',
-        messages: [
-          {
-            id: 'm_greet_' + Date.now(),
-            sender: 'them',
-            text: `Hey! Thanks for accepting my friend request 👋`,
-            time: 'Just now',
-          },
-        ],
+        messages: [],
       };
 
-      const updatedFriends = [newFriend, ...friends];
+      const updatedFriends = [newFriend, ...friends.filter((f) => f.id !== senderId)];
       persistFriends(updatedFriends);
 
       const updatedReqs = friendRequests.filter((r) => r.id !== requestId);
@@ -225,30 +343,55 @@ export function useChat() {
         await respondToFriendRequestInCloud({
           requestId,
           status: 'accepted',
-          senderId: req.senderId,
+          senderId,
           receiverId: currentUser.uid,
         });
       }
 
-      return newFriend;
+      refreshQuickAdd();
+      return { success: true, friend: newFriend };
     },
-    [friendRequests, friends, isFirebaseConfigured, currentUser]
+    [friendRequests, friends, isFirebaseConfigured, currentUser, refreshQuickAdd]
   );
 
   // 6. Reject Friend Request
   const rejectFriendRequest = useCallback(
     async (requestId) => {
+      const req = friendRequests.find((r) => r.id === requestId);
       const updatedReqs = friendRequests.filter((r) => r.id !== requestId);
       persistRequests(updatedReqs);
 
-      if (isFirebaseConfigured) {
+      if (isFirebaseConfigured && req) {
         await respondToFriendRequestInCloud({
           requestId,
           status: 'rejected',
+          senderId: req.senderId,
+          receiverId: currentUser?.uid,
         });
       }
+      return { success: true };
     },
-    [friendRequests, isFirebaseConfigured]
+    [friendRequests, isFirebaseConfigured, currentUser]
+  );
+
+  // 6b. Remove Friend
+  const removeFriend = useCallback(
+    async (friendId) => {
+      const updated = friends.filter((f) => f.id !== friendId && f.uid !== friendId);
+      persistFriends(updated);
+
+      if (activeFriendId === friendId) {
+        setActiveFriendId(null);
+      }
+
+      if (isFirebaseConfigured && currentUser) {
+        await removeFriendInCloud(currentUser.uid, friendId);
+      }
+
+      refreshQuickAdd();
+      return { success: true };
+    },
+    [friends, activeFriendId, isFirebaseConfigured, currentUser, refreshQuickAdd]
   );
 
   // 7. Send a Regular Text / Media Message
@@ -616,6 +759,10 @@ export function useChat() {
   return {
     friends,
     friendRequests,
+    sentRequests,
+    quickAddSuggestions,
+    isLoadingQuickAdd,
+    refreshQuickAdd,
     activeFriend,
     activeFriendId,
     setActiveFriendId,
@@ -632,5 +779,7 @@ export function useChat() {
     sendFriendRequest,
     acceptFriendRequest,
     rejectFriendRequest,
+    removeFriend,
+    getRequestStatus,
   };
 }

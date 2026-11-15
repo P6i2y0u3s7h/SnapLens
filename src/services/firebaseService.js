@@ -432,13 +432,14 @@ export async function deleteStoryFromCloud(storyId, storagePath) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// FRIENDS & USERS: Search, Requests, Streaks
+// FRIENDS & USERS: Search, Requests, Streaks, Friendships
 // ─────────────────────────────────────────────────────────────────
 
 /**
  * Searches users registered in Firestore by username, name, or email
+ * Excludes currently logged-in user
  */
-export async function searchUsersInCloud(searchTerm) {
+export async function searchUsersInCloud(searchTerm, excludeUserId = null) {
   if (!isFirebaseConfigured || !db || !searchTerm?.trim()) return [];
 
   const term = searchTerm.trim().toLowerCase();
@@ -448,6 +449,7 @@ export async function searchUsersInCloud(searchTerm) {
     const results = [];
 
     snapshot.forEach((d) => {
+      if (excludeUserId && d.id === excludeUserId) return;
       const data = d.data();
       const matchName = data.displayName?.toLowerCase().includes(term);
       const matchHandle = data.handle?.toLowerCase().includes(term);
@@ -473,23 +475,137 @@ export async function searchUsersInCloud(searchTerm) {
 }
 
 /**
- * Sends a friend request in Firestore
+ * Fetches Quick Add suggested real users from Firestore
+ * (Excludes current user, already added friends, and pending requests)
+ */
+export async function fetchQuickAddSuggestionsInCloud(currentUserId, limitCount = 12) {
+  if (!isFirebaseConfigured || !db || !currentUserId) return [];
+
+  try {
+    const usersRef = collection(db, 'users');
+    const snapshot = await getDocs(usersRef);
+
+    // Get current friends IDs
+    const friendsRef = collection(db, 'friends');
+    const fQuery = query(friendsRef, where('userId', '==', currentUserId));
+    const fSnap = await getDocs(fQuery);
+    const existingFriendIds = new Set();
+    fSnap.forEach((d) => {
+      const data = d.data();
+      if (data.friendId) existingFriendIds.add(data.friendId);
+    });
+
+    // Get pending sent & received requests
+    const reqsRef = collection(db, 'friendRequests');
+    const sentQ = query(
+      reqsRef,
+      where('senderId', '==', currentUserId),
+      where('status', '==', 'pending')
+    );
+    const recQ = query(
+      reqsRef,
+      where('receiverId', '==', currentUserId),
+      where('status', '==', 'pending')
+    );
+
+    const [sentSnap, recSnap] = await Promise.all([getDocs(sentQ), getDocs(recQ)]);
+    const pendingIds = new Set();
+    sentSnap.forEach((d) => pendingIds.add(d.data().receiverId));
+    recSnap.forEach((d) => pendingIds.add(d.data().senderId));
+
+    const suggestions = [];
+    snapshot.forEach((d) => {
+      const uid = d.id;
+      if (uid === currentUserId || existingFriendIds.has(uid) || pendingIds.has(uid)) {
+        return;
+      }
+      const data = d.data();
+      suggestions.push({
+        id: uid,
+        uid,
+        name: data.displayName || 'Snap Friend',
+        handle: data.handle || uid.substring(0, 8),
+        avatar: data.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${uid}`,
+        streak: data.streakCount || 0,
+        snapScore: data.snapScore || 500,
+        mutualCount: (d.id.charCodeAt(0) % 4) + 1, // deterministic mutual friends indicator
+      });
+    });
+
+    return suggestions.slice(0, limitCount);
+  } catch (err) {
+    console.warn('Quick add fetch error:', err);
+    return [];
+  }
+}
+
+/**
+ * Sends a friend request in Firestore with duplicate prevention
  */
 export async function sendFriendRequestInCloud({ sender, receiver }) {
   if (!isFirebaseConfigured || !db) return { success: true, isLocal: true };
 
+  const senderId = sender.uid || sender.id;
+  const receiverId = receiver.uid || receiver.id;
+
+  if (senderId === receiverId) {
+    return { success: false, error: 'You cannot send a friend request to yourself.' };
+  }
+
   try {
+    // 1. Check if friendship already exists in 'friends'
+    const friendDocRef = doc(db, 'friends', `${senderId}_${receiverId}`);
+    const friendDocSnap = await getDoc(friendDocRef);
+    if (friendDocSnap.exists()) {
+      return { success: false, error: 'You are already friends with this user.' };
+    }
+
+    // 2. Check if a pending request was already sent by us
+    const reqsRef = collection(db, 'friendRequests');
+    const q1 = query(
+      reqsRef,
+      where('senderId', '==', senderId),
+      where('receiverId', '==', receiverId),
+      where('status', '==', 'pending')
+    );
+    const snap1 = await getDocs(q1);
+    if (!snap1.empty) {
+      return { success: false, error: 'Friend request already sent.' };
+    }
+
+    // 3. Check if they already sent a request to us (if so, auto-accept!)
+    const q2 = query(
+      reqsRef,
+      where('senderId', '==', receiverId),
+      where('receiverId', '==', senderId),
+      where('status', '==', 'pending')
+    );
+    const snap2 = await getDocs(q2);
+    if (!snap2.empty) {
+      const incomingReqDoc = snap2.docs[0];
+      await respondToFriendRequestInCloud({
+        requestId: incomingReqDoc.id,
+        status: 'accepted',
+        senderId: receiverId,
+        receiverId: senderId,
+      });
+      return { success: true, autoAccepted: true };
+    }
+
+    // 4. Create new friend request
     const reqRef = await addDoc(collection(db, 'friendRequests'), {
-      senderId: sender.uid,
-      senderName: sender.displayName || 'Snap Friend',
+      senderId,
+      senderName: sender.displayName || sender.name || 'Snap Friend',
       senderHandle: sender.handle || 'user',
-      senderAvatar: sender.photoURL || '',
-      receiverId: receiver.uid || receiver.id,
-      receiverName: receiver.name || receiver.displayName,
-      receiverHandle: receiver.handle,
+      senderAvatar: sender.photoURL || sender.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${senderId}`,
+      receiverId,
+      receiverName: receiver.displayName || receiver.name || 'Snap Friend',
+      receiverHandle: receiver.handle || 'user',
+      receiverAvatar: receiver.photoURL || receiver.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${receiverId}`,
       status: 'pending', // 'pending' | 'accepted' | 'rejected'
       createdAt: serverTimestamp(),
       createdAtMs: Date.now(),
+      updatedAt: serverTimestamp(),
     });
 
     return { success: true, requestId: reqRef.id };
@@ -501,39 +617,232 @@ export async function sendFriendRequestInCloud({ sender, receiver }) {
 
 /**
  * Responds to a friend request ('accepted' or 'rejected')
+ * When accepted, establishes bilateral friendships in Firestore
  */
 export async function respondToFriendRequestInCloud({ requestId, status, senderId, receiverId }) {
   if (!isFirebaseConfigured || !db) return { success: true };
 
   try {
-    const reqDocRef = doc(db, 'friendRequests', requestId);
-    await updateDoc(reqDocRef, {
-      status,
-      respondedAt: serverTimestamp(),
-    });
+    const now = Date.now();
+    if (requestId) {
+      const reqDocRef = doc(db, 'friendRequests', requestId);
+      await updateDoc(reqDocRef, {
+        status,
+        respondedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }).catch(() => {});
+    }
 
-    // If accepted, create bilateral friend records in 'friends' collection
-    if (status === 'accepted') {
-      const friendship1 = {
+    // If accepted, create bilateral friend records and friendship document
+    if (status === 'accepted' && senderId && receiverId) {
+      const friendshipId = [senderId, receiverId].sort().join('_');
+
+      // 1. Bilateral 'friends' records
+      await setDoc(doc(db, 'friends', `${receiverId}_${senderId}`), {
         userId: receiverId,
         friendId: senderId,
         streak: 1,
         createdAt: serverTimestamp(),
-      };
-      const friendship2 = {
+        createdAtMs: now,
+      });
+
+      await setDoc(doc(db, 'friends', `${senderId}_${receiverId}`), {
         userId: senderId,
         friendId: receiverId,
         streak: 1,
         createdAt: serverTimestamp(),
-      };
-      await addDoc(collection(db, 'friends'), friendship1);
-      await addDoc(collection(db, 'friends'), friendship2);
+        createdAtMs: now,
+      });
+
+      // 2. 'friendships' record
+      await setDoc(
+        doc(db, 'friendships', friendshipId),
+        {
+          friendshipId,
+          user1Id: senderId,
+          user2Id: receiverId,
+          createdAt: serverTimestamp(),
+          createdAtMs: now,
+        },
+        { merge: true }
+      );
     }
 
     return { success: true };
   } catch (err) {
     console.warn('Respond friend request error:', err);
     return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Removes a friendship in Firestore
+ */
+export async function removeFriendInCloud(currentUserId, friendId) {
+  if (!isFirebaseConfigured || !db || !currentUserId || !friendId) return { success: true };
+
+  try {
+    const friendshipId = [currentUserId, friendId].sort().join('_');
+    await Promise.all([
+      deleteDoc(doc(db, 'friendships', friendshipId)).catch(() => {}),
+      deleteDoc(doc(db, 'friends', `${currentUserId}_${friendId}`)).catch(() => {}),
+      deleteDoc(doc(db, 'friends', `${friendId}_${currentUserId}`)).catch(() => {}),
+    ]);
+    return { success: true };
+  } catch (err) {
+    console.warn('Remove friend in cloud error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Subscribes to incoming friend requests in real-time
+ */
+export function subscribeToIncomingFriendRequestsInCloud(currentUserId, onUpdate) {
+  if (!isFirebaseConfigured || !db || !currentUserId) return () => {};
+
+  try {
+    const reqsRef = collection(db, 'friendRequests');
+    const q = query(
+      reqsRef,
+      where('receiverId', '==', currentUserId),
+      where('status', '==', 'pending')
+    );
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const requests = [];
+        snapshot.forEach((d) => {
+          requests.push({
+            id: d.id,
+            ...d.data(),
+          });
+        });
+        onUpdate(requests);
+      },
+      (err) => {
+        console.warn('Friend requests snapshot error:', err);
+      }
+    );
+  } catch (err) {
+    console.warn('Subscribe friend requests error:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Subscribes to sent pending friend requests in real-time
+ */
+export function subscribeToSentFriendRequestsInCloud(currentUserId, onUpdate) {
+  if (!isFirebaseConfigured || !db || !currentUserId) return () => {};
+
+  try {
+    const reqsRef = collection(db, 'friendRequests');
+    const q = query(
+      reqsRef,
+      where('senderId', '==', currentUserId),
+      where('status', '==', 'pending')
+    );
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const sent = [];
+        snapshot.forEach((d) => {
+          sent.push({
+            id: d.id,
+            ...d.data(),
+          });
+        });
+        onUpdate(sent);
+      },
+      (err) => {
+        console.warn('Sent friend requests snapshot error:', err);
+      }
+    );
+  } catch (err) {
+    console.warn('Subscribe sent friend requests error:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Subscribes to user friends in real-time from Firestore
+ */
+export function subscribeToFriendsInCloud(currentUserId, onUpdate) {
+  if (!isFirebaseConfigured || !db || !currentUserId) return () => {};
+
+  try {
+    const friendsRef = collection(db, 'friends');
+    const q = query(friendsRef, where('userId', '==', currentUserId));
+
+    return onSnapshot(
+      q,
+      async (snapshot) => {
+        const friendIds = [];
+        snapshot.forEach((d) => {
+          const data = d.data();
+          if (data.friendId) {
+            friendIds.push({
+              friendId: data.friendId,
+              streak: data.streak || 0,
+            });
+          }
+        });
+
+        if (friendIds.length === 0) {
+          onUpdate([]);
+          return;
+        }
+
+        const friendsData = await Promise.all(
+          friendIds.map(async ({ friendId, streak }) => {
+            try {
+              const userSnap = await getDoc(doc(db, 'users', friendId));
+              if (userSnap.exists()) {
+                const u = userSnap.data();
+                return {
+                  id: friendId,
+                  uid: friendId,
+                  name: u.displayName || 'Snap Friend',
+                  handle: u.handle || friendId.substring(0, 8),
+                  avatar: u.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${friendId}`,
+                  streak: streak || u.streakCount || 0,
+                  snapScore: u.snapScore || 500,
+                  status: 'opened',
+                  lastInteraction: 'Friends',
+                  lastInteractionTime: 'Active',
+                  messages: [],
+                };
+              }
+            } catch (e) {
+              console.warn('Error fetching friend user doc:', e);
+            }
+            return {
+              id: friendId,
+              uid: friendId,
+              name: 'Snap Friend',
+              handle: friendId.substring(0, 8),
+              avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${friendId}`,
+              streak: streak || 1,
+              status: 'opened',
+              lastInteraction: 'Friends',
+              lastInteractionTime: 'Active',
+              messages: [],
+            };
+          })
+        );
+
+        onUpdate(friendsData);
+      },
+      (err) => {
+        console.warn('Friends snapshot error:', err);
+      }
+    );
+  } catch (err) {
+    console.warn('Subscribe friends error:', err);
+    return () => {};
   }
 }
 

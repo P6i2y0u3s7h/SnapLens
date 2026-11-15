@@ -68,15 +68,29 @@ service cloud.firestore {
       );
     }
 
-    // Friends list
+    // Friends list & friendships
     match /friends/{friendshipId} {
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid || 
         resource.data.friendId == request.auth.uid
       );
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.friendId == request.auth.uid
+      );
+    }
+
+    match /friendships/{friendshipId} {
+      allow read: if isAuthenticated() && (
+        resource.data.user1Id == request.auth.uid || 
+        resource.data.user2Id == request.auth.uid
+      );
       allow create, update, delete: if isAuthenticated() && (
-        request.resource.data.userId == request.auth.uid || 
-        resource.data.userId == request.auth.uid
+        request.resource.data.user1Id == request.auth.uid || 
+        request.resource.data.user2Id == request.auth.uid ||
+        resource.data.user1Id == request.auth.uid || 
+        resource.data.user2Id == request.auth.uid
       );
     }
 

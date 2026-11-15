@@ -446,9 +446,9 @@ export default function ChatPage() {
 
               <div className="flex items-center gap-1.5">
                 <button
-                  onClick={() => setShowAddFriendModal(true)}
-                  className="w-9 h-9 rounded-xl glass-pill flex items-center justify-center text-white/80 hover:text-white"
-                  title="Add Custom Friend"
+                  onClick={() => navigate('/add-friends')}
+                  className="w-9 h-9 rounded-xl glass-pill flex items-center justify-center text-white/80 hover:text-[#FFFC00] hover:border-[#FFFC00]/40 transition-colors"
+                  title="Add Friends"
                 >
                   <UserPlus className="w-4 h-4" />
                 </button>
@@ -594,16 +594,11 @@ export default function ChatPage() {
                         </div>
                         <div className="flex items-center gap-2 mt-1">
                           <button
-                            onClick={() => setActiveTab('find')}
-                            className="px-3.5 py-1.5 rounded-full bg-[#FFFC00] text-black font-extrabold text-xs shadow-md shadow-[#FFFC00]/20 hover:scale-105 active:scale-95 transition-all"
+                            onClick={() => navigate('/add-friends')}
+                            className="px-4 py-1.5 rounded-full bg-[#FFFC00] text-black font-extrabold text-xs shadow-md shadow-[#FFFC00]/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5"
                           >
-                            Find Users
-                          </button>
-                          <button
-                            onClick={() => setShowAddFriendModal(true)}
-                            className="px-3.5 py-1.5 rounded-full bg-white/10 text-white font-bold text-xs border border-white/15 hover:bg-white/15 transition-all"
-                          >
-                            Add Handle
+                            <UserPlus className="w-3.5 h-3.5" />
+                            <span>Add Friends</span>
                           </button>
                         </div>
                       </div>

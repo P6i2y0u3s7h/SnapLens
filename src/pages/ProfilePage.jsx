@@ -21,7 +21,8 @@ import {
   LogIn,
   Edit2,
   X,
-  Check
+  Check,
+  UserPlus
 } from 'lucide-react';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
@@ -212,6 +213,14 @@ export default function ProfilePage() {
                   <span>Memories ({memories.length})</span>
                 </button>
 
+                <button
+                  onClick={() => navigate('/add-friends')}
+                  className="glass-pill px-5 py-2.5 text-xs font-semibold text-white/80 hover:text-white flex items-center gap-2 hover:border-[#FFFC00]/40 transition-colors"
+                >
+                  <UserPlus className="w-4 h-4 text-[#FFFC00]" />
+                  <span>Add Friends</span>
+                </button>
+
                 {currentUser ? (
                   <button
                     onClick={logout}
@@ -237,16 +246,19 @@ export default function ProfilePage() {
         {/* Stats Row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Total Memories', value: memories.length, icon: Camera, color: '#FFFC00' },
-            { label: 'Active Stories', value: myStories.length, icon: PlayCircle, color: '#06B6D4' },
-            { label: 'Friends', value: friends.length, icon: MessageSquare, color: '#10B981' },
+            { label: 'Total Memories', value: memories.length, icon: Camera, color: '#FFFC00', to: '/memories' },
+            { label: 'Active Stories', value: myStories.length, icon: PlayCircle, color: '#06B6D4', to: '/stories' },
+            { label: 'Friends', value: friends.length, icon: MessageSquare, color: '#10B981', to: '/add-friends' },
             { label: 'Snap Streaks', value: `${totalStreaks} 🔥`, icon: Flame, color: '#F59E0B' },
           ].map((stat) => {
             const Icon = stat.icon;
             return (
               <div
                 key={stat.label}
-                className="glass-panel rounded-2xl p-5 border border-white/10 flex flex-col justify-between shadow-lg"
+                onClick={stat.to ? () => navigate(stat.to) : undefined}
+                className={`glass-panel rounded-2xl p-5 border border-white/10 flex flex-col justify-between shadow-lg ${
+                  stat.to ? 'cursor-pointer hover:border-[#FFFC00]/40 transition-all hover:scale-[1.02]' : ''
+                }`}
               >
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-medium text-white/50">{stat.label}</span>

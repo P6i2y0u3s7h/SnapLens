@@ -60,6 +60,7 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const StoriesPage = lazy(() => import('./pages/StoriesPage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
+const AddFriendsPage = lazy(() => import('./pages/AddFriendsPage'));
 import BottomNav from './components/BottomNav';
 
 function PageLoader() {
@@ -151,6 +152,22 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <ChatPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/add-friends"
+              element={
+                <ProtectedRoute>
+                  <AddFriendsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/friends"
+              element={
+                <ProtectedRoute>
+                  <AddFriendsPage />
                 </ProtectedRoute>
               }
             />

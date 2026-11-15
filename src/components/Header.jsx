@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Camera, Sparkles, Image, Settings, User, MessageSquare, PlayCircle, LogIn } from 'lucide-react';
+import { Camera, Sparkles, Image, User, MessageSquare, PlayCircle, LogIn } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Header() {
@@ -97,15 +97,6 @@ export default function Header() {
               <span>Sign In</span>
             </button>
           )}
-
-          {/* Shown on desktop website, hidden on mobile */}
-          <button
-            onClick={() => handleNav('/settings')}
-            className="hidden md:flex w-9 h-9 rounded-xl glass-pill items-center justify-center text-white/70 hover:text-white transition-colors"
-            title="Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
 
           {/* Shown on desktop website, hidden on mobile */}
           <button
