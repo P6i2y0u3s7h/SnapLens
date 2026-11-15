@@ -256,31 +256,35 @@ export default function FriendProfilePage() {
     <div className="min-h-dvh bg-[#0A0A0F] text-white flex flex-col pb-28">
       <Header />
 
-      <main className="flex-1 max-w-3xl w-full mx-auto pt-16 sm:pt-20 px-3 sm:px-6">
-        {/* ── TOP NAV BAR ── */}
-        <div className="flex items-center justify-between py-3 mb-2">
+      <main className="flex-1 max-w-3xl w-full mx-auto pt-20 px-3 sm:px-6">
+        {/* ── PROFILE HEADER HERO CARD ── */}
+        <div className="relative glass-panel rounded-3xl p-6 sm:p-8 border border-white/12 shadow-2xl mb-6 text-center">
+          {/* Decorative Snapchat Glow Gradient (clipped to card radius) */}
+          <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
+            <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-gradient-to-b from-[#FFFC00]/20 via-purple-500/10 to-transparent blur-3xl" />
+          </div>
+
+          {/* Back Button (Top Left of Card) */}
           <button
             onClick={() => navigate(-1)}
-            className="w-10 h-10 rounded-2xl glass-pill flex items-center justify-center text-white/80 hover:text-white hover:border-[#FFFC00]/40 transition-colors"
+            className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20 w-10 h-10 rounded-2xl glass-pill flex items-center justify-center text-white/80 hover:text-white hover:border-[#FFFC00]/40 transition-colors shadow-md"
             title="Go Back"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
 
-          <div />
-
-          {/* Options Dropdown */}
-          <div className="relative">
+          {/* Options Dropdown (Top Right of Card) */}
+          <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-30">
             <button
               onClick={() => setShowOptionsMenu((prev) => !prev)}
-              className="w-10 h-10 rounded-2xl glass-pill flex items-center justify-center text-white/80 hover:text-white hover:border-[#FFFC00]/40 transition-colors"
+              className="w-10 h-10 rounded-2xl glass-pill flex items-center justify-center text-white/80 hover:text-white hover:border-[#FFFC00]/40 transition-colors shadow-md"
               title="Profile Options"
             >
               <MoreVertical className="w-5 h-5" />
             </button>
 
             {showOptionsMenu && (
-              <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl bg-[#141420] border border-white/15 shadow-2xl p-1.5 z-40">
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl bg-[#141420] border border-white/15 shadow-2xl p-1.5 z-40 text-left">
                 <button
                   onClick={handleShareProfile}
                   className="w-full px-3 py-2 text-xs font-semibold text-white/90 hover:bg-white/10 rounded-xl flex items-center gap-2 transition-colors text-left"
@@ -319,12 +323,6 @@ export default function FriendProfilePage() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* ── PROFILE HEADER HERO CARD ── */}
-        <div className="relative glass-panel rounded-3xl p-6 sm:p-8 border border-white/12 shadow-2xl overflow-hidden mb-6 text-center">
-          {/* Decorative Snapchat Glow Gradient */}
-          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-gradient-to-b from-[#FFFC00]/20 via-purple-500/10 to-transparent blur-3xl pointer-events-none" />
 
           {/* Large Circular Avatar with Glowing Ring */}
           <div className="relative inline-block mx-auto mb-4">
