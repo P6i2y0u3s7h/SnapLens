@@ -165,33 +165,34 @@ export async function uploadMediaToCloud({
  * Fetches user photos and videos from Firestore
  */
 export async function fetchUserCloudMedia(userId = null) {
-  const effectiveUserId = userId || auth?.currentUser?.uid;
+  const effectiveUserId = userId || auth?.currentUser?.uid || 'demo_user_snaplens_01';
 
   if (!isFirebaseConfigured || !db || !effectiveUserId) {
     return [];
   }
 
   try {
+    // Query by userId without composite index requirement, then sort in memory
     const q = query(
       collection(db, 'snaps'),
-      where('userId', '==', effectiveUserId),
-      orderBy('createdAt', 'desc')
+      where('userId', '==', effectiveUserId)
     );
 
     const querySnapshot = await getDocs(q);
     const media = [];
     querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
       media.push({
         id: docSnap.id,
         cloudId: docSnap.id,
-        ...docSnap.data(),
-        // Format timestamp if Firestore serverTimestamp
-        createdAt: docSnap.data().createdAt?.toDate
-          ? docSnap.data().createdAt.toDate().toISOString()
-          : new Date().toISOString(),
+        ...data,
+        createdAt: data.createdAt?.toDate
+          ? data.createdAt.toDate().toISOString()
+          : data.createdAt || new Date().toISOString(),
       });
     });
 
+    media.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     return media;
   } catch (err) {
     console.warn('Failed to fetch user media from Firestore:', err);

@@ -255,6 +255,8 @@ export default function MemoriesPage() {
                           src={item.url}
                           className="w-full h-full object-cover"
                           preload="metadata"
+                          muted
+                          playsInline
                         />
                         <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                           <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center border border-white/20">

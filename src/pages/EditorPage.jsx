@@ -87,7 +87,7 @@ export default function EditorPage() {
   const { friends, sendSnapToFriend } = useChat();
   const { currentUser } = useAuth();
 
-  const { dataUrl, videoUrl, type = 'photo', filter: initialFilterName } = location.state || {};
+  const { dataUrl, videoUrl, blob, type = 'photo', filter: initialFilterName } = location.state || {};
   const isVideo = type === 'video' || !!videoUrl;
 
   // Canvas & History Refs
@@ -596,9 +596,20 @@ export default function EditorPage() {
       overlays.find((o) => o.type === 'text')?.content ||
       (isVideo ? 'Edited Video Snap' : 'Edited Snap');
 
+    let effectiveBlob = blob || null;
+    if (isVideo && !effectiveBlob && videoUrl) {
+      try {
+        const res = await fetch(videoUrl);
+        effectiveBlob = await res.blob();
+      } catch (err) {
+        console.warn('Could not fetch blob from videoUrl:', err);
+      }
+    }
+
     try {
       const uploadRes = await uploadMediaToCloud({
-        dataUrl: finalUrl,
+        dataUrl: isVideo ? null : finalUrl,
+        fileBlob: isVideo ? effectiveBlob : null,
         type: isVideo ? 'video' : 'photo',
         filter: selectedFilter.name,
         caption,
@@ -606,22 +617,26 @@ export default function EditorPage() {
         userId: currentUser?.uid,
       });
 
+      const effectiveUrl = uploadRes?.mediaUrl || finalUrl;
+
       await saveMemory({
         type: isVideo ? 'video' : 'photo',
-        dataUrl: finalUrl,
-        url: finalUrl,
+        dataUrl: isVideo ? null : finalUrl,
+        url: effectiveUrl,
+        blob: effectiveBlob,
         filter: selectedFilter.name,
         title: caption,
-        cloudId: uploadRes.cloudId,
-        storagePath: uploadRes.storagePath,
-        isLocal: uploadRes.isLocal,
+        cloudId: uploadRes?.cloudId || null,
+        storagePath: uploadRes?.storagePath || null,
+        isLocal: uploadRes?.isLocal ?? true,
       });
     } catch (e) {
       console.debug('Cloud upload fallback:', e);
       await saveMemory({
         type: isVideo ? 'video' : 'photo',
-        dataUrl: finalUrl,
+        dataUrl: isVideo ? null : finalUrl,
         url: finalUrl,
+        blob: effectiveBlob,
         filter: selectedFilter.name,
         title: caption,
       });

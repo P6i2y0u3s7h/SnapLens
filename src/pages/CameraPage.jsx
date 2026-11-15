@@ -527,12 +527,12 @@ export default function CameraPage() {
       await saveMemory({
         type: 'photo',
         dataUrl: capturedPhotoUrl,
-        url: capturedPhotoUrl,
+        url: uploadRes?.mediaUrl || capturedPhotoUrl,
         filter: activeFilter.name,
         title: snapTitle,
-        cloudId: uploadRes.cloudId,
-        storagePath: uploadRes.storagePath,
-        isLocal: uploadRes.isLocal,
+        cloudId: uploadRes?.cloudId || null,
+        storagePath: uploadRes?.storagePath || null,
+        isLocal: uploadRes?.isLocal ?? true,
       });
     } catch (e) {
       console.debug('Cloud upload fallback:', e);
@@ -625,19 +625,21 @@ export default function CameraPage() {
 
       await saveMemory({
         type: 'video',
-        url: recordedVideoData.videoUrl,
+        url: uploadRes?.mediaUrl || recordedVideoData.videoUrl,
+        blob: recordedVideoData.blob,
         filter: finalFilterName,
         duration: finalDuration,
         title: videoTitle,
-        cloudId: uploadRes.cloudId,
-        storagePath: uploadRes.storagePath,
-        isLocal: uploadRes.isLocal,
+        cloudId: uploadRes?.cloudId || null,
+        storagePath: uploadRes?.storagePath || null,
+        isLocal: uploadRes?.isLocal ?? true,
       });
     } catch (e) {
       console.debug('Cloud upload fallback:', e);
       await saveMemory({
         type: 'video',
         url: recordedVideoData.videoUrl,
+        blob: recordedVideoData.blob,
         filter: finalFilterName,
         duration: finalDuration,
         title: videoTitle,
@@ -674,6 +676,7 @@ export default function CameraPage() {
     navigate('/editor', {
       state: {
         videoUrl: recordedVideoData.videoUrl,
+        blob: recordedVideoData.blob,
         type: 'video',
         filter: videoFilter?.name || activeFilter.name,
         caption: videoCaption,
