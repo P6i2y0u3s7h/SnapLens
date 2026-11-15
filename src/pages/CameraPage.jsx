@@ -339,7 +339,15 @@ export default function CameraPage() {
         playRecordStartSound();
 
         const video = videoRef.current;
-        const needsComposite = (activeFaceLens && activeFaceLens !== 'none') || (activeFilter && activeFilter.id !== 'original');
+        const hasBeautyApplied =
+          beauty.smoothing > 0 ||
+          beauty.brightness !== 100 ||
+          beauty.contrast !== 100 ||
+          beauty.saturation !== 100;
+        const needsComposite =
+          (activeFaceLens && activeFaceLens !== 'none') ||
+          (activeFilter && activeFilter.id !== 'original') ||
+          hasBeautyApplied;
 
         if (needsComposite && video && video.videoWidth > 0) {
           const recordCanvas = document.createElement('canvas');
@@ -853,12 +861,14 @@ export default function CameraPage() {
           onCanPlay={(e) => {
             e.currentTarget.play().catch(() => {});
           }}
-          className={`w-full h-full object-cover transition-all duration-300 ${
+          className={`w-full h-full object-cover transition-transform duration-300 ${
             isFlippingLens ? 'scale-90 rotate-180 opacity-50 blur-sm' : ''
           }`}
           style={{
             filter: getComputedFilterStyle(),
+            WebkitFilter: getComputedFilterStyle(),
             transform: `${facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)'} scale(${zoomLevel})`,
+            willChange: 'filter, transform',
           }}
         />
 
@@ -942,12 +952,13 @@ export default function CameraPage() {
         <AnimatePresence>
           {showBeautyPanel && !capturedPhotoUrl && !recordedVideoData && (
             <motion.div
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 40 }}
-              transition={{ duration: 0.2 }}
-              className="absolute right-14 sm:right-16 top-1/2 -translate-y-1/2 z-30 w-64 sm:w-72 glass-panel rounded-3xl p-4 sm:p-5 border border-white/15 shadow-2xl"
+              initial={{ opacity: 0, x: 30, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 30, scale: 0.95 }}
+              transition={{ duration: 0.18 }}
+              className="absolute right-3 sm:right-16 top-1/2 -translate-y-1/2 z-40 w-72 sm:w-80 glass-panel rounded-3xl p-4 sm:p-5 border border-white/20 shadow-2xl touch-auto pointer-events-auto"
             >
+              {/* Header */}
               <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-white/10">
                 <div className="flex items-center gap-2">
                   <Sliders className="w-4 h-4 text-[#FFFC00]" />
@@ -955,37 +966,86 @@ export default function CameraPage() {
                 </div>
                 <button
                   onClick={() => setShowBeautyPanel(false)}
-                  className="w-6 h-6 rounded-full glass-pill flex items-center justify-center text-white/60 hover:text-white"
+                  className="w-7 h-7 rounded-full glass-pill flex items-center justify-center text-white/70 hover:text-white hover:bg-white/15 transition-colors"
+                  title="Close Beauty Panel"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="mb-3.5">
+                <span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider block mb-1.5">
+                  Quick Presets
+                </span>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[
+                    { label: 'Natural', config: { smoothing: 0, brightness: 100, contrast: 100, saturation: 100 } },
+                    { label: 'Glow', config: { smoothing: 1.5, brightness: 108, contrast: 102, saturation: 105 } },
+                    { label: 'Porcelain', config: { smoothing: 2.5, brightness: 112, contrast: 98, saturation: 95 } },
+                    { label: 'Warm', config: { smoothing: 1.0, brightness: 106, contrast: 108, saturation: 118 } },
+                  ].map((preset) => {
+                    const isActive =
+                      beauty.smoothing === preset.config.smoothing &&
+                      beauty.brightness === preset.config.brightness &&
+                      beauty.contrast === preset.config.contrast &&
+                      beauty.saturation === preset.config.saturation;
+                    return (
+                      <button
+                        key={preset.label}
+                        onClick={() => {
+                          setBeauty(preset.config);
+                          playFilterPopSound();
+                        }}
+                        className={`py-1 px-1 rounded-lg text-[10px] font-bold text-center transition-all ${
+                          isActive
+                            ? 'bg-[#FFFC00] text-black shadow-md shadow-[#FFFC00]/30'
+                            : 'bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="space-y-3.5 text-xs">
                 {/* Smoothing */}
                 <div>
                   <div className="flex justify-between mb-1 font-medium">
-                    <span className="text-white/70">Skin Smoothing</span>
-                    <span className="text-[#FFFC00] font-mono">{beauty.smoothing}px</span>
+                    <span className="text-white/80">Skin Smoothing</span>
+                    <span className="text-[#FFFC00] font-mono font-bold">
+                      {(Math.round(beauty.smoothing * 10) / 10).toFixed(1)}px
+                    </span>
                   </div>
                   <input
                     type="range"
                     min="0"
-                    max="3"
-                    step="0.2"
+                    max="5"
+                    step="0.25"
                     value={beauty.smoothing}
-                    onChange={(e) =>
-                      setBeauty((prev) => ({ ...prev, smoothing: parseFloat(e.target.value) }))
+                    onInput={(e) =>
+                      setBeauty((prev) => ({
+                        ...prev,
+                        smoothing: parseFloat(Number(e.target.value).toFixed(2)),
+                      }))
                     }
-                    className="w-full h-1.5 rounded-lg bg-white/10 accent-[#FFFC00] cursor-pointer"
+                    onChange={(e) =>
+                      setBeauty((prev) => ({
+                        ...prev,
+                        smoothing: parseFloat(Number(e.target.value).toFixed(2)),
+                      }))
+                    }
+                    className="snap-slider"
                   />
                 </div>
 
                 {/* Brightness */}
                 <div>
                   <div className="flex justify-between mb-1 font-medium">
-                    <span className="text-white/70">Brightness</span>
-                    <span className="text-[#FFFC00] font-mono">{beauty.brightness}%</span>
+                    <span className="text-white/80">Brightness</span>
+                    <span className="text-[#FFFC00] font-mono font-bold">{beauty.brightness}%</span>
                   </div>
                   <input
                     type="range"
@@ -993,18 +1053,27 @@ export default function CameraPage() {
                     max="140"
                     step="2"
                     value={beauty.brightness}
-                    onChange={(e) =>
-                      setBeauty((prev) => ({ ...prev, brightness: parseInt(e.target.value) }))
+                    onInput={(e) =>
+                      setBeauty((prev) => ({
+                        ...prev,
+                        brightness: parseInt(e.target.value, 10),
+                      }))
                     }
-                    className="w-full h-1.5 rounded-lg bg-white/10 accent-[#FFFC00] cursor-pointer"
+                    onChange={(e) =>
+                      setBeauty((prev) => ({
+                        ...prev,
+                        brightness: parseInt(e.target.value, 10),
+                      }))
+                    }
+                    className="snap-slider"
                   />
                 </div>
 
                 {/* Contrast */}
                 <div>
                   <div className="flex justify-between mb-1 font-medium">
-                    <span className="text-white/70">Contrast</span>
-                    <span className="text-[#FFFC00] font-mono">{beauty.contrast}%</span>
+                    <span className="text-white/80">Contrast</span>
+                    <span className="text-[#FFFC00] font-mono font-bold">{beauty.contrast}%</span>
                   </div>
                   <input
                     type="range"
@@ -1012,18 +1081,27 @@ export default function CameraPage() {
                     max="140"
                     step="2"
                     value={beauty.contrast}
-                    onChange={(e) =>
-                      setBeauty((prev) => ({ ...prev, contrast: parseInt(e.target.value) }))
+                    onInput={(e) =>
+                      setBeauty((prev) => ({
+                        ...prev,
+                        contrast: parseInt(e.target.value, 10),
+                      }))
                     }
-                    className="w-full h-1.5 rounded-lg bg-white/10 accent-[#FFFC00] cursor-pointer"
+                    onChange={(e) =>
+                      setBeauty((prev) => ({
+                        ...prev,
+                        contrast: parseInt(e.target.value, 10),
+                      }))
+                    }
+                    className="snap-slider"
                   />
                 </div>
 
                 {/* Saturation */}
                 <div>
                   <div className="flex justify-between mb-1 font-medium">
-                    <span className="text-white/70">Saturation</span>
-                    <span className="text-[#FFFC00] font-mono">{beauty.saturation}%</span>
+                    <span className="text-white/80">Saturation</span>
+                    <span className="text-[#FFFC00] font-mono font-bold">{beauty.saturation}%</span>
                   </div>
                   <input
                     type="range"
@@ -1031,22 +1109,49 @@ export default function CameraPage() {
                     max="180"
                     step="5"
                     value={beauty.saturation}
-                    onChange={(e) =>
-                      setBeauty((prev) => ({ ...prev, saturation: parseInt(e.target.value) }))
+                    onInput={(e) =>
+                      setBeauty((prev) => ({
+                        ...prev,
+                        saturation: parseInt(e.target.value, 10),
+                      }))
                     }
-                    className="w-full h-1.5 rounded-lg bg-white/10 accent-[#FFFC00] cursor-pointer"
+                    onChange={(e) =>
+                      setBeauty((prev) => ({
+                        ...prev,
+                        saturation: parseInt(e.target.value, 10),
+                      }))
+                    }
+                    className="snap-slider"
                   />
                 </div>
               </div>
 
-              <button
-                onClick={() =>
-                  setBeauty({ smoothing: 0, brightness: 100, contrast: 100, saturation: 100 })
-                }
-                className="w-full mt-4 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-[11px] font-semibold transition-colors"
-              >
-                Reset Defaults
-              </button>
+              {/* Reset Defaults Button */}
+              {(() => {
+                const isModified =
+                  beauty.smoothing > 0 ||
+                  beauty.brightness !== 100 ||
+                  beauty.contrast !== 100 ||
+                  beauty.saturation !== 100;
+                return (
+                  <button
+                    onClick={() => {
+                      setBeauty({ smoothing: 0, brightness: 100, contrast: 100, saturation: 100 });
+                      playFilterPopSound();
+                      toast('Beauty settings reset to defaults', { icon: '✨' });
+                    }}
+                    disabled={!isModified}
+                    className={`w-full mt-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      isModified
+                        ? 'border border-[#FFFC00]/50 bg-[#FFFC00]/15 hover:bg-[#FFFC00]/25 text-[#FFFC00] shadow-md shadow-[#FFFC00]/15 active:scale-95 cursor-pointer'
+                        : 'bg-white/5 text-white/30 border border-transparent cursor-not-allowed'
+                    }`}
+                  >
+                    <RotateCcw className={`w-3.5 h-3.5 ${isModified ? 'text-[#FFFC00]' : 'text-white/30'}`} />
+                    <span>Reset Defaults</span>
+                  </button>
+                );
+              })()}
             </motion.div>
           )}
         </AnimatePresence>
