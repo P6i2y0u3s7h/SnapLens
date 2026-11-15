@@ -60,9 +60,11 @@ export default function AuthModal() {
 
           {/* Logo & Headline */}
           <div className="text-center mb-6">
-            <div className="w-12 h-12 rounded-2xl snap-gradient mx-auto flex items-center justify-center text-black font-black text-xl mb-3 shadow-lg shadow-[#FFFC00]/25">
-              👻
-            </div>
+            <img
+              src="/logo.png"
+              alt="SnapLens Logo"
+              className="w-14 h-14 rounded-2xl mx-auto mb-3 shadow-lg shadow-[#FFFC00]/25 object-cover border border-white/15"
+            />
             <h2 className="text-2xl font-black text-white">
               {mode === 'login' ? 'Sign in to SnapLens' : 'Join SnapLens'}
             </h2>

@@ -67,9 +67,11 @@ function PageLoader() {
     <div className="fixed inset-0 bg-[#0A0A0F] z-50 flex flex-col items-center justify-center select-none">
       <div className="relative w-16 h-16 mb-4 flex items-center justify-center">
         <div className="absolute inset-0 rounded-3xl snap-gradient opacity-20 animate-ping" />
-        <div className="w-14 h-14 rounded-2xl snap-gradient flex items-center justify-center shadow-lg shadow-[#FFFC00]/25">
-          <Camera className="w-7 h-7 text-black animate-pulse" />
-        </div>
+        <img
+          src="/logo.png"
+          alt="SnapLens"
+          className="w-14 h-14 rounded-2xl object-cover shadow-lg shadow-[#FFFC00]/25 animate-pulse border border-white/15"
+        />
       </div>
       <span className="text-xs font-bold text-white/50 tracking-widest uppercase">
         SnapLens

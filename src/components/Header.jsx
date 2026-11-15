@@ -35,9 +35,11 @@ export default function Header() {
           onClick={() => navigate('/')}
           className="flex items-center gap-2.5 cursor-pointer group"
         >
-          <div className="w-9 h-9 rounded-2xl snap-gradient flex items-center justify-center shadow-md shadow-[#FFFC00]/20 group-hover:scale-105 transition-transform">
-            <Camera className="w-5 h-5 text-black" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="SnapLens Logo"
+            className="w-9 h-9 rounded-2xl object-cover shadow-md shadow-[#FFFC00]/25 group-hover:scale-105 transition-transform border border-white/10"
+          />
           <div className="flex items-center gap-1.5">
             <span className="font-extrabold text-lg tracking-tight text-white">
               SnapLens

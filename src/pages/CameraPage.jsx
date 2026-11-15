@@ -827,9 +827,7 @@ export default function CameraPage() {
             </button>
 
             <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/10">
-              <div className="w-4 h-4 rounded-md snap-gradient flex items-center justify-center">
-                <Camera className="w-2.5 h-2.5 text-black" />
-              </div>
+              <img src="/logo.png" alt="SnapLens Logo" className="w-4 h-4 rounded-full object-cover" />
               <span className="font-extrabold text-xs tracking-tight text-white hidden xs:inline">SnapLens</span>
             </div>
           </div>

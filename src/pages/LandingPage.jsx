@@ -418,8 +418,8 @@ export default function LandingPage() {
           <div className="absolute bottom-0 left-0 w-80 h-80 bg-amber-500/10 rounded-full blur-[100px] pointer-events-none" />
 
           <div className="relative z-10 max-w-2xl mx-auto">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl snap-gradient flex items-center justify-center mx-auto mb-5 sm:mb-6 shadow-xl shadow-[#FFFC00]/20">
-              <Camera className="w-7 h-7 sm:w-8 sm:h-8 text-black" />
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl mx-auto mb-5 sm:mb-6 shadow-xl shadow-[#FFFC00]/25 overflow-hidden border border-white/20">
+              <img src="/logo.png" alt="SnapLens Logo" className="w-full h-full object-cover" />
             </div>
 
             <h2 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight mb-4">
@@ -446,9 +446,7 @@ export default function LandingPage() {
       <footer className="border-t border-white/8 pt-8 pb-14 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-5 text-xs text-white/40">
           <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-lg snap-gradient flex items-center justify-center">
-              <Camera className="w-3 h-3 text-black" />
-            </div>
+            <img src="/logo.png" alt="SnapLens Logo" className="w-6 h-6 rounded-lg object-cover" />
             <span className="font-extrabold text-sm text-white">SnapLens</span>
             <span>— Premium Camera Web Experience</span>
           </div>
