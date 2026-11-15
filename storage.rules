@@ -1,0 +1,40 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // User Snaps (Photos & Videos)
+    match /snaps/{userId}/{fileName} {
+      // Allow read if user is authenticated
+      allow read: if isAuthenticated();
+
+      // Allow upload only if owner and valid content type & size
+      allow write: if isOwner(userId) && (
+        // Photos: max 20MB
+        (request.resource.contentType.matches('image/.*') && request.resource.size < 20 * 1024 * 1024) ||
+        // Videos: max 100MB
+        (request.resource.contentType.matches('video/.*') && request.resource.size < 100 * 1024 * 1024)
+      );
+
+      // Allow delete only if owner
+      allow delete: if isOwner(userId);
+    }
+
+    // User Profile Avatars
+    match /avatars/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if isOwner(userId) && 
+        request.resource.contentType.matches('image/.*') &&
+        request.resource.size < 5 * 1024 * 1024;
+      allow delete: if isOwner(userId);
+    }
+  }
+}
+
