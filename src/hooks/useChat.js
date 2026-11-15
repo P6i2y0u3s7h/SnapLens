@@ -17,6 +17,9 @@ import {
   removeFriendInCloud,
   deleteChatMessageInCloud,
   clearChatConversationInCloud,
+  blockUserInCloud,
+  unblockUserInCloud,
+  fetchFriendProfileDataInCloud,
   getChatId,
 } from '../services/firebaseService';
 import { useAuth } from '../contexts/AuthContext';
@@ -463,6 +466,45 @@ export function useChat() {
       return { success: true };
     },
     [friends, activeFriendId, isFirebaseConfigured, currentUser, refreshQuickAdd, fetchPeople]
+  );
+
+  // 6c. Block User
+  const blockUser = useCallback(
+    async (targetUserId) => {
+      if (!targetUserId) return { success: false };
+
+      const updated = friends.filter((f) => f.id !== targetUserId && f.uid !== targetUserId);
+      persistFriends(updated);
+
+      if (activeFriendId === targetUserId) {
+        setActiveFriendId(null);
+      }
+
+      if (isFirebaseConfigured && currentUser) {
+        await blockUserInCloud(currentUser.uid, targetUserId);
+      }
+
+      refreshQuickAdd();
+      fetchPeople();
+      return { success: true };
+    },
+    [friends, activeFriendId, isFirebaseConfigured, currentUser, refreshQuickAdd, fetchPeople]
+  );
+
+  // 6d. Unblock User
+  const unblockUser = useCallback(
+    async (targetUserId) => {
+      if (!targetUserId) return { success: false };
+
+      if (isFirebaseConfigured && currentUser) {
+        await unblockUserInCloud(currentUser.uid, targetUserId);
+      }
+
+      refreshQuickAdd();
+      fetchPeople();
+      return { success: true };
+    },
+    [isFirebaseConfigured, currentUser, refreshQuickAdd, fetchPeople]
   );
 
   // 7. Send a Regular Text / Media Message
@@ -920,6 +962,9 @@ export function useChat() {
     acceptFriendRequest,
     rejectFriendRequest,
     removeFriend,
+    blockUser,
+    unblockUser,
+    fetchFriendProfileDataInCloud,
     getRequestStatus,
   };
 }

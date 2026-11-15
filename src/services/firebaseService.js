@@ -1536,3 +1536,207 @@ export async function fetchReceivedSnapsFromCloud(userId) {
     return [];
   }
 }
+
+/**
+ * ─────────────────────────────────────────────────────────────────
+ * FRIEND PROFILE & SAFETY (Blocks & Relationships)
+ * ─────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * Fetches complete public profile data, friendship stats, mutual friends,
+ * active stories, and shared snaps for a friend from Firestore.
+ */
+export async function fetchFriendProfileDataInCloud(targetUserId, currentUserId = null) {
+  if (!isFirebaseConfigured || !db || !targetUserId) return null;
+
+  try {
+    // 1. Fetch user document
+    const userDocRef = doc(db, 'users', targetUserId);
+    const userDocSnap = await getDoc(userDocRef);
+    if (!userDocSnap.exists()) return null;
+
+    const userData = userDocSnap.data();
+
+    // 2. Fetch friendship with current user
+    let isFriend = false;
+    let streak = userData.streakCount || 0;
+    let friendsSince = null;
+
+    if (currentUserId && currentUserId !== targetUserId) {
+      const friendDocRef = doc(db, 'friends', `${currentUserId}_${targetUserId}`);
+      const friendDocSnap = await getDoc(friendDocRef);
+      if (friendDocSnap.exists()) {
+        isFriend = true;
+        const fData = friendDocSnap.data();
+        streak = fData.streak || streak || 0;
+        friendsSince = fData.createdAtMs || (fData.createdAt?.toMillis ? fData.createdAt.toMillis() : null);
+      }
+    }
+
+    // 3. Fetch target user's friends count
+    const targetFriendsQuery = query(collection(db, 'friends'), where('userId', '==', targetUserId));
+    const targetFriendsSnap = await getDocs(targetFriendsQuery);
+    const targetFriendIds = new Set();
+    targetFriendsSnap.forEach((d) => {
+      const data = d.data();
+      if (data.friendId) targetFriendIds.add(data.friendId);
+    });
+    const friendsCount = targetFriendIds.size;
+
+    // 4. Calculate real mutual friends
+    const mutualFriends = [];
+    if (currentUserId && currentUserId !== targetUserId && targetFriendIds.size > 0) {
+      const myFriendsQuery = query(collection(db, 'friends'), where('userId', '==', currentUserId));
+      const myFriendsSnap = await getDocs(myFriendsQuery);
+      const mutualIds = [];
+      myFriendsSnap.forEach((d) => {
+        const data = d.data();
+        if (data.friendId && targetFriendIds.has(data.friendId)) {
+          mutualIds.push(data.friendId);
+        }
+      });
+
+      // Fetch avatar & name for mutual preview
+      for (const mId of mutualIds.slice(0, 6)) {
+        try {
+          const mSnap = await getDoc(doc(db, 'users', mId));
+          if (mSnap.exists()) {
+            const mData = mSnap.data();
+            mutualFriends.push({
+              id: mId,
+              name: mData.displayName || 'Snap Friend',
+              handle: mData.handle || 'user',
+              avatar: mData.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${mId}`,
+            });
+          }
+        } catch {}
+      }
+    }
+
+    // 5. Fetch active stories (last 24 hours)
+    const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const storiesQuery = query(
+      collection(db, 'stories'),
+      where('userId', '==', targetUserId),
+      limit(20)
+    );
+    const storiesSnap = await getDocs(storiesQuery);
+    const activeStories = [];
+    storiesSnap.forEach((d) => {
+      const sData = d.data();
+      const createdTime = sData.createdAtMs || (sData.createdAt?.toMillis ? sData.createdAt.toMillis() : 0);
+      if (createdTime >= twentyFourHoursAgo) {
+        activeStories.push({
+          id: d.id,
+          ...sData,
+        });
+      }
+    });
+
+    // 6. Fetch shared snaps between current user and target user
+    const sharedSnaps = [];
+    if (currentUserId && currentUserId !== targetUserId) {
+      try {
+        const q1 = query(
+          collection(db, 'snaps'),
+          where('recipientId', '==', currentUserId),
+          where('senderId', '==', targetUserId),
+          limit(20)
+        );
+        const q2 = query(
+          collection(db, 'snaps'),
+          where('recipientId', '==', targetUserId),
+          where('senderId', '==', currentUserId),
+          limit(20)
+        );
+        const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+        const snapMap = new Map();
+        snap1.forEach((d) => snapMap.set(d.id, { id: d.id, ...d.data(), isReceived: true }));
+        snap2.forEach((d) => snapMap.set(d.id, { id: d.id, ...d.data(), isReceived: false }));
+
+        const sorted = Array.from(snapMap.values()).sort(
+          (a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0)
+        );
+        sharedSnaps.push(...sorted.slice(0, 16));
+      } catch (err) {
+        console.warn('Error fetching shared snaps:', err);
+      }
+    }
+
+    // 7. Check if blocked
+    let isBlocked = false;
+    if (currentUserId && currentUserId !== targetUserId) {
+      try {
+        const blockSnap = await getDoc(doc(db, 'blocks', `${currentUserId}_${targetUserId}`));
+        if (blockSnap.exists()) {
+          isBlocked = true;
+        }
+      } catch {}
+    }
+
+    return {
+      id: targetUserId,
+      uid: targetUserId,
+      name: userData.displayName || 'SnapLens Creator',
+      handle: userData.handle || targetUserId.substring(0, 8),
+      avatar: userData.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${targetUserId}`,
+      bio: userData.bio || '',
+      streak,
+      snapScore: userData.snapScore || 0,
+      createdAtMs: userData.createdAtMs || (userData.createdAt?.toMillis ? userData.createdAt.toMillis() : null),
+      friendsCount,
+      mutualFriends,
+      mutualCount: mutualFriends.length,
+      isFriend,
+      friendsSince,
+      activeStories,
+      sharedSnaps,
+      isBlocked,
+    };
+  } catch (err) {
+    console.warn('fetchFriendProfileDataInCloud error:', err);
+    return null;
+  }
+}
+
+/**
+ * Blocks a user and removes existing friendship
+ */
+export async function blockUserInCloud(currentUserId, targetUserId) {
+  if (!isFirebaseConfigured || !db || !currentUserId || !targetUserId) return { success: true };
+
+  try {
+    const blockId = `${currentUserId}_${targetUserId}`;
+    await setDoc(doc(db, 'blocks', blockId), {
+      blockerId: currentUserId,
+      blockedUserId: targetUserId,
+      createdAt: serverTimestamp(),
+      createdAtMs: Date.now(),
+    });
+
+    // Remove friendship
+    await removeFriendInCloud(currentUserId, targetUserId);
+
+    return { success: true };
+  } catch (err) {
+    console.warn('blockUserInCloud error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Unblocks a user
+ */
+export async function unblockUserInCloud(currentUserId, targetUserId) {
+  if (!isFirebaseConfigured || !db || !currentUserId || !targetUserId) return { success: true };
+
+  try {
+    const blockId = `${currentUserId}_${targetUserId}`;
+    await deleteDoc(doc(db, 'blocks', blockId));
+    return { success: true };
+  } catch (err) {
+    console.warn('unblockUserInCloud error:', err);
+    return { success: false, error: err.message };
+  }
+}

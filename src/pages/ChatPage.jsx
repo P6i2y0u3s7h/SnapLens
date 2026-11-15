@@ -645,11 +645,18 @@ export default function ChatPage() {
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="relative flex-shrink-0">
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/user/${friend.id}`);
+                            }}
+                            className="relative flex-shrink-0 hover:scale-105 transition-transform"
+                            title={`View ${friend.name}'s profile`}
+                          >
                             <img
                               src={friend.avatar}
                               alt={friend.name}
-                              className="w-12 h-12 rounded-full object-cover border border-white/10"
+                              className="w-12 h-12 rounded-full object-cover border border-white/10 hover:border-[#FFFC00]"
                             />
                             {friend.unreadCount > 0 && (
                               <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#FFFC00] border-2 border-[#0A0A0F]" />
@@ -825,32 +832,38 @@ export default function ChatPage() {
                       <ArrowLeft className="w-5 h-5" />
                     </button>
 
-                    <div className="relative flex-shrink-0">
-                      <img
-                        src={activeFriend.avatar}
-                        alt={activeFriend.name}
-                        className="w-10 h-10 rounded-full object-cover border-2 border-[#FFFC00]/60 ring-2 ring-black/40"
-                      />
-                      <span className="w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#0A0A0F] absolute -bottom-0.5 -right-0.5 shadow-sm" />
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 sm:gap-2">
-                        <h3 className="font-extrabold text-sm sm:text-base text-white truncate">
-                          {activeFriend.name}
-                        </h3>
-                        {activeFriend.streak > 0 && (
-                          <span className="flex items-center gap-0.5 sm:gap-1 text-[11px] sm:text-xs font-black text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30 flex-shrink-0">
-                            <Flame className="w-3 h-3 fill-current text-amber-500" />
-                            <span>{activeFriend.streak}</span>
-                          </span>
-                        )}
+                    <div
+                      onClick={() => navigate(`/user/${activeFriend.id}`)}
+                      className="flex items-center gap-2.5 sm:gap-3 min-w-0 cursor-pointer group"
+                      title={`View ${activeFriend.name}'s profile`}
+                    >
+                      <div className="relative flex-shrink-0 group-hover:scale-105 transition-transform">
+                        <img
+                          src={activeFriend.avatar}
+                          alt={activeFriend.name}
+                          className="w-10 h-10 rounded-full object-cover border-2 border-[#FFFC00]/60 ring-2 ring-black/40 group-hover:border-[#FFFC00]"
+                        />
+                        <span className="w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#0A0A0F] absolute -bottom-0.5 -right-0.5 shadow-sm" />
                       </div>
-                      <p className="text-[11px] text-white/50 font-mono truncate flex items-center gap-1.5 mt-0.5">
-                        <span>@{activeFriend.handle}</span>
-                        <span>•</span>
-                        <span className="text-emerald-400 font-medium">Active now</span>
-                      </p>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          <h3 className="font-extrabold text-sm sm:text-base text-white truncate group-hover:text-[#FFFC00] transition-colors">
+                            {activeFriend.name}
+                          </h3>
+                          {activeFriend.streak > 0 && (
+                            <span className="flex items-center gap-0.5 sm:gap-1 text-[11px] sm:text-xs font-black text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30 flex-shrink-0">
+                              <Flame className="w-3 h-3 fill-current text-amber-500" />
+                              <span>{activeFriend.streak}</span>
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-white/50 font-mono truncate flex items-center gap-1.5 mt-0.5">
+                          <span>@{activeFriend.handle}</span>
+                          <span>•</span>
+                          <span className="text-emerald-400 font-medium">Active now</span>
+                        </p>
+                      </div>
                     </div>
                   </div>
 

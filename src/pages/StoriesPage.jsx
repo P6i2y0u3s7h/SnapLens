@@ -284,7 +284,16 @@ export default function StoriesPage() {
                   </div>
                 </div>
 
-                <span className="text-xs font-semibold text-white/80 group-hover:text-[#FFFC00] transition-colors truncate max-w-full text-center">
+                <span
+                  onClick={(e) => {
+                    if (friend.user?.uid || friend.id) {
+                      e.stopPropagation();
+                      navigate(`/user/${friend.user?.uid || friend.id}`);
+                    }
+                  }}
+                  className="text-xs font-semibold text-white/80 hover:text-[#FFFC00] transition-colors truncate max-w-full text-center hover:underline"
+                  title="View Profile"
+                >
                   {friend.user.name.split(' ')[0]}
                 </span>
                 <span className="text-[10px] text-white/40 -mt-1 font-mono">

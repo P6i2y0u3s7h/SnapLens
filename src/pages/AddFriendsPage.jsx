@@ -259,17 +259,21 @@ export default function AddFriendsPage() {
                       animate={{ opacity: 1, y: 0 }}
                       className="p-3.5 glass-panel rounded-2xl border border-white/10 flex items-center justify-between gap-3 hover:border-white/20 transition-all"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        onClick={() => navigate(`/user/${user.id || user.uid}`)}
+                        className="flex items-center gap-3 min-w-0 cursor-pointer group"
+                        title={`View ${user.name}'s profile`}
+                      >
                         <img
                           src={
                             user.avatar ||
                             `https://api.dicebear.com/7.x/bottts/svg?seed=${user.id || user.uid}`
                           }
                           alt={user.name}
-                          className="w-12 h-12 rounded-full object-cover border-2 border-white/10 flex-shrink-0"
+                          className="w-12 h-12 rounded-full object-cover border-2 border-white/10 flex-shrink-0 group-hover:scale-105 group-hover:border-[#FFFC00] transition-all"
                         />
                         <div className="min-w-0">
-                          <h4 className="text-sm font-bold text-white truncate">
+                          <h4 className="text-sm font-bold text-white truncate group-hover:text-[#FFFC00] transition-colors">
                             {user.name}
                           </h4>
                           <p className="text-xs text-white/50 font-mono truncate">
@@ -431,17 +435,21 @@ export default function AddFriendsPage() {
                       key={user.id || user.uid}
                       className="p-3.5 glass-panel rounded-2xl border border-white/10 flex items-center justify-between gap-3 hover:border-white/20 transition-all"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        onClick={() => navigate(`/user/${user.id || user.uid}`)}
+                        className="flex items-center gap-3 min-w-0 cursor-pointer group"
+                        title={`View ${user.name}'s profile`}
+                      >
                         <img
                           src={
                             user.avatar ||
                             `https://api.dicebear.com/7.x/bottts/svg?seed=${user.id || user.uid}`
                           }
                           alt={user.name}
-                          className="w-12 h-12 rounded-full object-cover border border-white/10 flex-shrink-0"
+                          className="w-12 h-12 rounded-full object-cover border border-white/10 flex-shrink-0 group-hover:scale-105 group-hover:border-[#FFFC00] transition-all"
                         />
                         <div className="min-w-0">
-                          <h4 className="text-sm font-bold text-white truncate">
+                          <h4 className="text-sm font-bold text-white truncate group-hover:text-[#FFFC00] transition-colors">
                             {user.name}
                           </h4>
                           <p className="text-xs text-white/50 font-mono truncate">
@@ -560,17 +568,21 @@ export default function AddFriendsPage() {
                       animate={{ opacity: 1, y: 0 }}
                       className="p-3.5 glass-panel rounded-2xl border border-white/10 flex items-center justify-between gap-3 hover:border-white/20 transition-all"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        onClick={() => navigate(`/user/${user.id || user.uid}`)}
+                        className="flex items-center gap-3 min-w-0 cursor-pointer group"
+                        title={`View ${user.name}'s profile`}
+                      >
                         <img
                           src={
                             user.avatar ||
                             `https://api.dicebear.com/7.x/bottts/svg?seed=${user.id || user.uid}`
                           }
                           alt={user.name}
-                          className="w-12 h-12 rounded-full object-cover border border-white/15 flex-shrink-0"
+                          className="w-12 h-12 rounded-full object-cover border border-white/15 flex-shrink-0 group-hover:scale-105 group-hover:border-[#FFFC00] transition-all"
                         />
                         <div className="min-w-0">
-                          <h4 className="text-sm font-bold text-white truncate">
+                          <h4 className="text-sm font-bold text-white truncate group-hover:text-[#FFFC00] transition-colors">
                             {user.name}
                           </h4>
                           <p className="text-xs text-white/50 font-mono truncate">
@@ -697,15 +709,19 @@ export default function AddFriendsPage() {
                     key={friend.id || friend.uid}
                     className="p-3.5 glass-panel rounded-2xl border border-white/10 flex items-center justify-between gap-3 hover:border-white/20 transition-all"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      onClick={() => navigate(`/user/${friend.id || friend.uid}`)}
+                      className="flex items-center gap-3 min-w-0 cursor-pointer group"
+                      title={`View ${friend.name}'s profile`}
+                    >
                       <img
                         src={friend.avatar}
                         alt={friend.name}
-                        className="w-12 h-12 rounded-full object-cover border-2 border-emerald-400/40 flex-shrink-0"
+                        className="w-12 h-12 rounded-full object-cover border-2 border-emerald-400/40 flex-shrink-0 group-hover:scale-105 group-hover:border-[#FFFC00] transition-all"
                       />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <h4 className="text-sm font-bold text-white truncate">
+                          <h4 className="text-sm font-bold text-white truncate group-hover:text-[#FFFC00] transition-colors">
                             {friend.name}
                           </h4>
                           {friend.streak > 0 && (

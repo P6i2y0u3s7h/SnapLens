@@ -94,6 +94,11 @@ service cloud.firestore {
       );
     }
 
+    // Blocked Users
+    match /blocks/{blockId} {
+      allow read, write: if isAuthenticated();
+    }
+
     // Social Chats & Messages
     match /chats/{chatId} {
       allow read, write: if isAuthenticated();
