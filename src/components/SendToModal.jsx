@@ -20,14 +20,15 @@ import toast from 'react-hot-toast';
 
 /**
  * Premium Snapchat-Inspired "Send To" Modal
+ * Responsive across mobile (320px–430px), tablet, and desktop viewports.
  * Supports:
- * - Single and multi-friend selection with checkboxes
- * - "Select All" / "Deselect All"
- * - Live search by name / @username
+ * - Single and multi-friend selection with synced checkboxes
+ * - "Select All" / "Deselect All" aligned with Friends section
+ * - Responsive search by name / @username
  * - Selected friends avatar tray with 1-tap remove
- * - Captured media preview thumbnail (photo or video)
+ * - Captured media preview with non-truncated description
  * - Single upload to Firebase Storage & multi-recipient Firestore delivery
- * - Progress tracking & anti-duplicate protection
+ * - Mobile safe-area inset aware fixed bottom Send button
  */
 export default function SendToModal({
   isOpen,
@@ -61,6 +62,12 @@ export default function SendToModal({
     );
   }, [friends, searchQuery]);
 
+  // Target friends for selection (scoped to search results if searching, otherwise all friends)
+  const targetFriends = searchQuery.trim() ? filteredFriends : friends;
+  const isAllSelected =
+    targetFriends.length > 0 &&
+    targetFriends.every((f) => selectedFriendIds.includes(f.id));
+
   // Toggle single friend selection
   const handleToggleFriend = (friendId) => {
     if (isSending) return;
@@ -78,13 +85,15 @@ export default function SendToModal({
     setSelectedFriendIds((prev) => prev.filter((id) => id !== friendId));
   };
 
-  // Toggle Select All
+  // Toggle Select All (operates on target friends, does not affect My Story)
   const handleToggleSelectAll = () => {
-    if (isSending) return;
-    if (selectedFriendIds.length === friends.length) {
-      setSelectedFriendIds([]);
+    if (isSending || targetFriends.length === 0) return;
+    if (isAllSelected) {
+      const targetIds = new Set(targetFriends.map((f) => f.id));
+      setSelectedFriendIds((prev) => prev.filter((id) => !targetIds.has(id)));
     } else {
-      setSelectedFriendIds(friends.map((f) => f.id));
+      const targetIds = targetFriends.map((f) => f.id);
+      setSelectedFriendIds((prev) => Array.from(new Set([...prev, ...targetIds])));
     }
   };
 
@@ -96,7 +105,7 @@ export default function SendToModal({
     setUploadProgress(15);
 
     try {
-      // Optional: Add to My Story if selected
+      // 1. Add to My Story if selected
       if (sendToStory) {
         addSnapToMyStory({
           type: mediaType,
@@ -106,7 +115,7 @@ export default function SendToModal({
         });
       }
 
-      // Send snap to all selected friends
+      // 2. Send snap to all selected friends (uploaded once to storage, distributed to recipients)
       if (selectedFriendIds.length > 0) {
         await sendSnapToMultipleFriends(selectedFriendIds, {
           snapUrl: mediaUrl,
@@ -159,13 +168,43 @@ export default function SendToModal({
   if (!isOpen) return null;
 
   const totalSelected = selectedFriendIds.length + (sendToStory ? 1 : 0);
-  const isAllSelected = friends.length > 0 && selectedFriendIds.length === friends.length;
+  const friendCount = selectedFriendIds.length;
   const previewSource = mediaUrl || dataUrl;
+
+  // Dynamic button label computation matching all requested cases
+  const getButtonText = () => {
+    if (isSending) {
+      const targetLabel =
+        friendCount > 0 && sendToStory
+          ? `${friendCount} friend${friendCount > 1 ? 's' : ''} & Story`
+          : friendCount > 0
+          ? `${friendCount} friend${friendCount > 1 ? 's' : ''}`
+          : 'Story';
+      return `Sending Snap to ${targetLabel}...`;
+    }
+    if (isSuccess) {
+      return 'Snap Sent Successfully!';
+    }
+    if (friendCount === 0 && !sendToStory) {
+      return 'Select Friends to Send';
+    }
+    if (friendCount === 0 && sendToStory) {
+      return 'Share to Story';
+    }
+    if (friendCount > 0 && sendToStory) {
+      const friendLabel = friendCount === 1 ? '1 Friend' : `${friendCount} Friends`;
+      return `Send to ${friendLabel} & Story`;
+    }
+    if (friendCount === 1) {
+      return 'Send to 1 Friend';
+    }
+    return `Send to ${friendCount} Friends`;
+  };
 
   return (
     <AnimatePresence>
       <div
-        className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 select-none"
+        className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 select-none overscroll-none"
         onClick={() => !isSending && onClose()}
       >
         <motion.div
@@ -173,25 +212,25 @@ export default function SendToModal({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 40, scale: 0.96 }}
           transition={{ duration: 0.22, ease: 'easeOut' }}
-          className="bg-[#0E0E18] border border-white/10 rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[92vh] sm:max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
+          className="bg-[#0E0E18] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg h-[94dvh] sm:h-auto sm:max-h-[86vh] flex flex-col shadow-2xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* ── HEADER ── */}
-          <div className="px-4 py-3.5 border-b border-white/10 flex items-center justify-between bg-[#141422]/90 flex-shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-[#FFFC00] flex items-center justify-center text-black shadow-md">
+          {/* ── 1. HEADER ── */}
+          <div className="px-4 py-3 sm:py-3.5 border-b border-white/10 flex items-center justify-between bg-[#141422]/95 backdrop-blur-md flex-shrink-0 gap-3">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <div className="w-8 h-8 rounded-full bg-[#FFFC00] flex items-center justify-center text-black shadow-md flex-shrink-0">
                 <Send className="w-4 h-4 ml-0.5" />
               </div>
-              <div>
-                <h2 className="text-base font-extrabold text-white tracking-tight flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm sm:text-base font-extrabold text-white tracking-tight flex items-center gap-2 flex-wrap">
                   <span>Send To</span>
                   {selectedFriendIds.length > 0 && (
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FFFC00] text-black">
+                    <span className="text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FFFC00] text-black whitespace-nowrap">
                       {selectedFriendIds.length} Selected
                     </span>
                   )}
                 </h2>
-                <p className="text-[11px] text-white/50">
+                <p className="text-[11px] text-white/50 leading-tight mt-0.5 break-words line-clamp-1 sm:line-clamp-none">
                   Select friends or story to share your Snap
                 </p>
               </div>
@@ -200,17 +239,17 @@ export default function SendToModal({
             <button
               onClick={() => !isSending && onClose()}
               disabled={isSending}
-              className="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-white/70 hover:text-white transition-all disabled:opacity-40"
+              className="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-white/70 hover:text-white transition-all disabled:opacity-40 flex-shrink-0 ml-auto"
               title="Close"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* ── MEDIA PREVIEW CHIP & CAPTION (Single Upload Indicator) ── */}
-          <div className="px-4 py-3 bg-white/3 border-b border-white/5 flex items-center gap-3 flex-shrink-0">
+          {/* ── 2. MEDIA PREVIEW SECTION (No Description Truncation) ── */}
+          <div className="px-4 py-2.5 sm:py-3 bg-white/3 border-b border-white/5 flex items-center gap-3 flex-shrink-0">
             {previewSource && (
-              <div className="relative w-12 h-14 rounded-xl overflow-hidden bg-black/60 border border-white/15 flex-shrink-0 shadow-md">
+              <div className="relative w-12 h-14 sm:w-14 sm:h-16 rounded-xl overflow-hidden bg-black/60 border border-white/15 flex-shrink-0 shadow-md aspect-[3/4]">
                 {mediaType === 'video' ? (
                   <video
                     src={previewSource}
@@ -227,27 +266,27 @@ export default function SendToModal({
                     className="w-full h-full object-cover"
                   />
                 )}
-                <div className="absolute bottom-0.5 right-0.5 bg-black/70 backdrop-blur-xs rounded px-1 py-0.2 text-[9px] font-bold text-[#FFFC00]">
+                <div className="absolute bottom-0.5 right-0.5 bg-black/75 backdrop-blur-xs rounded px-1 py-0.2 text-[8px] sm:text-[9px] font-bold text-[#FFFC00]">
                   {mediaType === 'video' ? 'VIDEO' : 'SNAP'}
                 </div>
               </div>
             )}
 
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-white truncate">
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-white mb-0.5">
                 <Sparkles className="w-3.5 h-3.5 text-[#FFFC00] flex-shrink-0" />
                 <span className="truncate">
                   {caption ? caption : mediaType === 'video' ? 'Live Video Snap' : 'Photo Snap'}
                 </span>
               </div>
-              <p className="text-[10px] text-white/40 mt-0.5 font-mono truncate">
-                Uploads once • Sent to all selected recipients
+              <p className="text-[10px] sm:text-[11px] text-white/50 leading-snug break-words">
+                Uploads once • Delivered instantly to all selected recipients
               </p>
             </div>
           </div>
 
-          {/* ── SEARCH INPUT & SELECT ALL BAR ── */}
-          <div className="p-3 border-b border-white/5 space-y-2 flex-shrink-0 bg-[#0E0E18]">
+          {/* ── 3. SEARCH BAR & SELECT ALL ── */}
+          <div className="p-3 sm:px-4 sm:py-3 border-b border-white/5 space-y-2 flex-shrink-0 bg-[#0E0E18]">
             <div className="relative">
               <Search className="w-4 h-4 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -256,7 +295,7 @@ export default function SendToModal({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 disabled={isSending}
-                className="w-full pl-9 pr-9 py-2 rounded-2xl bg-white/6 border border-white/10 text-xs sm:text-sm text-white placeholder-white/40 focus:outline-none focus:border-[#FFFC00] transition-colors"
+                className="w-full pl-9 pr-9 py-2 sm:py-2.5 rounded-2xl bg-white/6 border border-white/10 text-xs sm:text-sm text-white placeholder-white/40 focus:outline-none focus:border-[#FFFC00] transition-colors"
               />
               {searchQuery && (
                 <button
@@ -268,7 +307,7 @@ export default function SendToModal({
               )}
             </div>
 
-            {/* Quick Actions Bar */}
+            {/* Friends Heading & Select All aligned */}
             <div className="flex items-center justify-between px-1 text-xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">
                 Friends ({filteredFriends.length})
@@ -276,7 +315,7 @@ export default function SendToModal({
               <button
                 type="button"
                 onClick={handleToggleSelectAll}
-                disabled={isSending || friends.length === 0}
+                disabled={isSending || targetFriends.length === 0}
                 className="text-xs font-bold text-[#FFFC00] hover:underline disabled:opacity-40"
               >
                 {isAllSelected ? 'Deselect All' : 'Select All'}
@@ -284,9 +323,9 @@ export default function SendToModal({
             </div>
           </div>
 
-          {/* ── SELECTED FRIENDS TRAY (Horizontal Scrollable Avatar Chips) ── */}
+          {/* ── 4. SELECTED FRIENDS AVATAR TRAY ── */}
           {selectedFriendIds.length > 0 && (
-            <div className="px-3 py-2 bg-[#121220] border-b border-white/5 flex items-center gap-2 overflow-x-auto no-scrollbar touch-scroll-x flex-shrink-0">
+            <div className="px-3 sm:px-4 py-2 bg-[#121220] border-b border-white/5 flex items-center gap-2 overflow-x-auto no-scrollbar touch-scroll-x flex-shrink-0">
               <span className="text-[10px] font-black uppercase tracking-wider text-white/40 pl-1 flex-shrink-0">
                 To:
               </span>
@@ -322,31 +361,31 @@ export default function SendToModal({
             </div>
           )}
 
-          {/* ── FRIENDS & STORY LIST (Scrollable) ── */}
-          <div className="flex-1 overflow-y-auto no-scrollbar p-3 space-y-2 min-h-48 divide-y divide-white/5">
-            {/* Option: My Story Toggle */}
+          {/* ── 5. INDEPENDENT SCROLLABLE BODY (Story & Friends) ── */}
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar overscroll-contain p-3 sm:p-4 space-y-2 divide-y divide-white/5">
+            {/* My Story Selection Row */}
             <div
               onClick={() => !isSending && setSendToStory(!sendToStory)}
-              className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+              className={`p-3 sm:px-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                 sendToStory
                   ? 'bg-[#FFFC00]/15 border-[#FFFC00]/60 shadow-lg shadow-[#FFFC00]/5'
                   : 'bg-white/4 border-white/8 hover:bg-white/8'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-purple-500 via-pink-500 to-[#FFFC00] p-0.5 flex-shrink-0">
+              <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-tr from-purple-500 via-pink-500 to-[#FFFC00] p-0.5 flex-shrink-0">
                   <div className="w-full h-full rounded-full bg-[#0E0E18] flex items-center justify-center">
-                    <Play className="w-5 h-5 text-[#FFFC00] fill-current ml-0.5" />
+                    <Play className="w-4 h-4 sm:w-5 sm:h-5 text-[#FFFC00] fill-current ml-0.5" />
                   </div>
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-sm font-bold text-white flex items-center gap-1.5 flex-wrap">
                     <span>My Story</span>
                     <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300">
                       24h
                     </span>
                   </h4>
-                  <p className="text-[11px] text-white/50">
+                  <p className="text-[11px] text-white/50 leading-tight truncate">
                     Share publicly with all your friends
                   </p>
                 </div>
@@ -354,10 +393,10 @@ export default function SendToModal({
 
               {/* Checkbox */}
               <div
-                className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+                className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all flex-shrink-0 ${
                   sendToStory
                     ? 'bg-[#FFFC00] text-black shadow-md'
-                    : 'border-2 border-white/30 bg-white/5'
+                    : 'border-2 border-white/30 bg-white/5 hover:border-white/50'
                 }`}
               >
                 {sendToStory && <Check className="w-4 h-4 stroke-[3]" />}
@@ -386,26 +425,26 @@ export default function SendToModal({
                   <div
                     key={friend.id}
                     onClick={() => handleToggleFriend(friend.id)}
-                    className={`pt-2 p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                    className={`pt-2 p-3 sm:px-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                       isSelected
                         ? 'bg-[#FFFC00]/15 border-[#FFFC00]/60 shadow-md shadow-[#FFFC00]/5'
                         : 'bg-white/3 border-transparent hover:bg-white/6 hover:border-white/10'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
                       {/* Avatar with status indicator */}
                       <div className="relative flex-shrink-0">
                         <img
                           src={friend.avatar}
                           alt={friend.name}
-                          className="w-11 h-11 rounded-full object-cover border border-white/15"
+                          className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border border-white/15"
                         />
                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#0E0E18] absolute bottom-0 right-0" />
                       </div>
 
                       {/* Name, Handle, Streak */}
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
                           <h4 className="text-sm font-bold text-white truncate">
                             {friend.name}
                           </h4>
@@ -438,11 +477,11 @@ export default function SendToModal({
             )}
           </div>
 
-          {/* ── BOTTOM STICKY BAR: PROMISING YELLOW SEND BUTTON ── */}
-          <div className="p-3 sm:p-4 bg-[#141422] border-t border-white/10 flex-shrink-0 pb-safe">
+          {/* ── 6. FIXED BOTTOM SEND BUTTON (Mobile Safe Area Aware) ── */}
+          <div className="p-3.5 sm:p-4 bg-[#141422]/95 backdrop-blur-md border-t border-white/10 flex-shrink-0 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-4">
             {/* Progress bar during cloud upload */}
             {isSending && (
-              <div className="w-full bg-white/10 rounded-full h-1.5 mb-2 overflow-hidden">
+              <div className="w-full bg-white/10 rounded-full h-1.5 mb-2.5 overflow-hidden">
                 <motion.div
                   className="bg-[#FFFC00] h-full rounded-full"
                   initial={{ width: '10%' }}
@@ -455,38 +494,30 @@ export default function SendToModal({
             <button
               onClick={handleSendSnap}
               disabled={isSending || (selectedFriendIds.length === 0 && !sendToStory)}
-              className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm tracking-wide flex items-center justify-center gap-2 transition-all active:scale-98 ${
+              className={`w-full py-3.5 px-4 rounded-2xl font-black text-xs sm:text-sm tracking-wide flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
                 isSending
                   ? 'bg-white/15 text-white/60 cursor-not-allowed'
                   : isSuccess
                   ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-400/30 scale-100'
                   : selectedFriendIds.length > 0 || sendToStory
                   ? 'bg-[#FFFC00] text-black shadow-xl shadow-[#FFFC00]/30 hover:scale-[1.01]'
-                  : 'bg-white/10 text-white/30 cursor-not-allowed'
+                  : 'bg-white/10 text-white/30 cursor-not-allowed border border-white/5'
               }`}
             >
               {isSending ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>
-                    Sending Snap to {totalSelected} recipient{totalSelected > 1 ? 's' : ''}...
-                  </span>
+                  <Loader2 className="w-4 h-4 animate-spin text-white flex-shrink-0" />
+                  <span className="truncate">{getButtonText()}</span>
                 </>
               ) : isSuccess ? (
                 <>
-                  <CheckCheck className="w-5 h-5 stroke-[2.5]" />
+                  <CheckCheck className="w-5 h-5 stroke-[2.5] flex-shrink-0" />
                   <span>Snap Sent Successfully!</span>
                 </>
               ) : (
                 <>
-                  <Send className="w-4 h-4 ml-0.5" />
-                  <span>
-                    {selectedFriendIds.length === 0 && !sendToStory
-                      ? 'Select Friends to Send'
-                      : selectedFriendIds.length === 1 && !sendToStory
-                      ? `Send to ${friends.find((f) => f.id === selectedFriendIds[0])?.name || 'Friend'}`
-                      : `Send to ${totalSelected} Friend${totalSelected > 1 ? 's' : ''}`}
-                  </span>
+                  <Send className="w-4 h-4 ml-0.5 flex-shrink-0" />
+                  <span className="truncate">{getButtonText()}</span>
                 </>
               )}
             </button>
@@ -496,4 +527,3 @@ export default function SendToModal({
     </AnimatePresence>
   );
 }
-

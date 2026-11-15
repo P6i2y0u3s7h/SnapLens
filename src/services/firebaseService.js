@@ -1445,7 +1445,7 @@ export async function sendSnapToMultipleFriendsInCloud({
     return { success: false, error: 'No recipients selected' };
   }
 
-  const senderId = sender?.uid || sender?.id || 'demo_user';
+  const senderId = sender?.uid || sender?.id || auth?.currentUser?.uid || 'user_local';
   const senderName = sender?.displayName || sender?.name || 'SnapLens User';
   const senderAvatar = sender?.photoURL || sender?.avatar || '';
   const senderHandle = sender?.handle || (sender?.email ? sender.email.split('@')[0] : 'user');
