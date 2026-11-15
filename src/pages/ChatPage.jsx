@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Camera,
@@ -29,6 +29,7 @@ import toast from 'react-hot-toast';
 
 export default function ChatPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser } = useAuth();
   const {
     friends,
@@ -61,6 +62,35 @@ export default function ChatPage() {
 
   const mediaInputRef = useRef(null);
   const messagesEndRef = useRef(null);
+
+  // Sync state from location (e.g. from camera quick-send)
+  useEffect(() => {
+    if (location.state?.sendToFriendId || location.state?.activeFriendId) {
+      setActiveFriendId(location.state.sendToFriendId || location.state.activeFriendId);
+    }
+  }, [location.state, setActiveFriendId]);
+
+  // Handle hardware / browser back button on mobile when in chat
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveFriendId(null);
+    };
+
+    if (activeFriendId) {
+      window.history.pushState({ inChat: true }, '');
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [activeFriendId, setActiveFriendId]);
+
+  const handleBackToFriends = () => {
+    setActiveFriendId(null);
+    if (window.history.state?.inChat) {
+      window.history.back();
+    }
+  };
 
   // Auto-scroll messages to bottom
   useEffect(() => {
@@ -168,7 +198,7 @@ export default function ChatPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white flex flex-col pb-24">
+    <div className="min-h-screen bg-[#0A0A0F] text-white flex flex-col pb-20 sm:pb-24">
       <Header />
 
       {/* Hidden Media Input */}
@@ -180,11 +210,11 @@ export default function ChatPage() {
         onChange={handleMediaUpload}
       />
 
-      <main className="flex-1 max-w-6xl w-full mx-auto pt-20 px-3 sm:px-6 flex">
-        <div className="w-full flex-1 flex rounded-3xl overflow-hidden glass-panel border border-white/10 shadow-2xl h-[calc(100vh-140px)] min-h-[520px]">
+      <main className="flex-1 max-w-6xl w-full mx-auto pt-16 sm:pt-20 px-0 sm:px-4 md:px-6 flex">
+        <div className="w-full flex-1 flex flex-col md:flex-row rounded-none sm:rounded-3xl overflow-hidden glass-panel border-0 sm:border sm:border-white/10 shadow-2xl md:h-[calc(100vh-140px)] min-h-0">
           {/* LEFT SIDE: Friends & Requests Navigation */}
           <div
-            className={`w-full md:w-80 lg:w-96 flex flex-col border-r border-white/10 bg-[#0E0E18]/70 ${
+            className={`w-full md:w-80 lg:w-96 flex flex-col border-r border-white/10 bg-[#0E0E18]/85 flex-shrink-0 ${
               activeFriendId ? 'hidden md:flex' : 'flex'
             }`}
           >
@@ -439,65 +469,79 @@ export default function ChatPage() {
             )}
           </div>
 
-          {/* RIGHT SIDE: Active Conversation */}
+          {/* RIGHT SIDE / MOBILE FULL-SCREEN: Active Conversation */}
           <div
-            className={`flex-1 flex flex-col bg-[#0A0A12]/80 ${
-              !activeFriendId ? 'hidden md:flex items-center justify-center' : 'flex'
+            className={`min-w-0 ${
+              activeFriendId
+                ? 'fixed inset-0 z-50 flex flex-col bg-[#0A0A0F] md:relative md:inset-auto md:z-auto md:flex-1 md:bg-[#0A0A12]/80'
+                : 'hidden md:flex md:flex-1 items-center justify-center bg-[#0A0A12]/80'
             }`}
           >
             {activeFriend ? (
               <>
-                {/* Chat Top Header */}
-                <div className="p-3.5 sm:p-4 border-b border-white/8 flex items-center justify-between bg-[#0E0E18]/40">
-                  <div className="flex items-center gap-3">
+                {/* Dedicated Snapchat Chat Header */}
+                <div className="h-16 px-3 sm:px-4 border-b border-white/10 flex items-center justify-between bg-[#0E0E18]/90 backdrop-blur-xl flex-shrink-0 z-10 pt-safe">
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                     <button
-                      onClick={() => setActiveFriendId(null)}
-                      className="md:hidden w-8 h-8 rounded-full glass-pill flex items-center justify-center text-white"
+                      onClick={handleBackToFriends}
+                      className="md:hidden w-9 h-9 rounded-full glass-pill flex items-center justify-center text-white/90 hover:text-white active:scale-95 flex-shrink-0"
+                      title="Back to Friends"
                     >
-                      <ArrowLeft className="w-4 h-4" />
+                      <ArrowLeft className="w-5 h-5" />
                     </button>
 
-                    <div className="relative">
+                    <div className="relative flex-shrink-0">
                       <img
                         src={activeFriend.avatar}
                         alt={activeFriend.name}
-                        className="w-10 h-10 rounded-full object-cover border border-[#FFFC00]/40"
+                        className="w-10 h-10 rounded-full object-cover border-2 border-[#FFFC00]/60 ring-2 ring-black/40"
                       />
+                      <span className="w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#0A0A0F] absolute -bottom-0.5 -right-0.5 shadow-sm" />
                     </div>
 
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-extrabold text-sm sm:text-base text-white">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 sm:gap-2">
+                        <h3 className="font-extrabold text-sm sm:text-base text-white truncate">
                           {activeFriend.name}
                         </h3>
                         {activeFriend.streak > 0 && (
-                          <span className="flex items-center gap-1 text-xs font-black text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30">
+                          <span className="flex items-center gap-0.5 sm:gap-1 text-[11px] sm:text-xs font-black text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30 flex-shrink-0">
                             <Flame className="w-3 h-3 fill-current text-amber-500" />
                             <span>{activeFriend.streak}</span>
                           </span>
                         )}
                       </div>
-                      <span className="text-[11px] text-white/50 font-mono">
-                        @{activeFriend.handle}
-                      </span>
+                      <p className="text-[11px] text-white/50 font-mono truncate flex items-center gap-1.5 mt-0.5">
+                        <span>@{activeFriend.handle}</span>
+                        <span>•</span>
+                        <span className="text-emerald-400 font-medium">Active now</span>
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                     <button
                       onClick={() =>
                         navigate('/camera', { state: { sendToFriendId: activeFriend.id } })
                       }
-                      className="btn-snap px-3 py-1.5 rounded-full text-xs font-bold text-black flex items-center gap-1.5 shadow-md shadow-[#FFFC00]/20"
+                      className="btn-snap px-3 py-1.5 rounded-full text-xs font-bold text-black flex items-center gap-1.5 shadow-md shadow-[#FFFC00]/20 hover:scale-105 active:scale-95 transition-all"
+                      title={`Send Snap to ${activeFriend.name}`}
                     >
-                      <Camera className="w-3.5 h-3.5" />
+                      <Camera className="w-4 h-4" />
                       <span className="hidden sm:inline">Send Snap</span>
                     </button>
                   </div>
                 </div>
 
                 {/* Message Bubble Thread */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+                <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-3 min-w-0 w-full overflow-x-hidden no-scrollbar">
+                  {/* Centered Date Separator */}
+                  <div className="flex justify-center my-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/40 bg-white/5 border border-white/10 px-3 py-1 rounded-full">
+                      Today
+                    </span>
+                  </div>
+
                   {(activeFriend.messages || []).map((msg) => {
                     const isMe = msg.sender === 'me';
                     const isSnap = msg.type === 'snap';
@@ -505,79 +549,92 @@ export default function ChatPage() {
                     return (
                       <div
                         key={msg.id}
-                        className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                        className={`w-full flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1`}
                       >
                         {isSnap ? (
                           /* Disappearing Snap Message Card */
                           <div
                             onClick={() => handleOpenSnap(activeFriend.id, msg)}
-                            className={`cursor-pointer rounded-2xl p-3 flex items-center gap-3 transition-all duration-300 max-w-[280px] sm:max-w-xs shadow-lg ${
+                            className={`cursor-pointer rounded-2xl p-3 flex items-center gap-3 transition-all duration-200 max-w-[280px] sm:max-w-xs shadow-lg ${
                               msg.opened
                                 ? 'bg-white/5 border border-white/10 opacity-70'
-                                : 'bg-gradient-to-r from-red-500/25 via-pink-500/20 to-purple-500/25 border border-red-500/40 hover:scale-105 active:scale-95'
+                                : 'bg-gradient-to-r from-red-500/25 via-pink-500/20 to-purple-500/25 border border-red-500/40 hover:scale-105 active:scale-95 shadow-red-500/10'
                             }`}
                           >
                             <div
-                              className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                              className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                                 msg.opened
                                   ? 'bg-white/10 text-white/50'
-                                  : 'bg-red-500 text-white animate-pulse'
+                                  : 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30'
                               }`}
                             >
-                              {msg.opened ? <Eye className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+                              {msg.opened ? (
+                                <Eye className="w-5 h-5" />
+                              ) : (
+                                <Play className="w-5 h-5 fill-current ml-0.5" />
+                              )}
                             </div>
 
                             <div className="min-w-0">
-                              <span className="text-xs font-bold text-white block">
+                              <span className="text-xs font-bold text-white block truncate">
                                 {msg.opened ? 'Snap Viewed' : 'New Disappearing Snap'}
                               </span>
-                              <span className="text-[11px] text-white/60">
-                                {msg.opened ? 'Opened • Disappeared' : 'Tap to view (Timed)'}
+                              <span className="text-[11px] text-white/60 block truncate">
+                                {msg.opened ? 'Opened • Disappeared' : 'Tap to view (Timed) 🔥'}
                               </span>
                             </div>
                           </div>
                         ) : msg.mediaUrl ? (
                           /* Standard Media Attachment */
                           <div
-                            className={`rounded-2xl overflow-hidden border max-w-[260px] sm:max-w-sm ${
-                              isMe ? 'bg-[#FFFC00]/15 border-[#FFFC00]/30' : 'bg-white/10 border-white/10'
+                            className={`rounded-2xl overflow-hidden border max-w-[260px] sm:max-w-sm shadow-lg ${
+                              isMe ? 'bg-[#FFFC00]/15 border-[#FFFC00]/30' : 'bg-[#181824] border-white/10'
                             }`}
                           >
                             {msg.mediaType === 'video' ? (
                               <video src={msg.mediaUrl} controls className="w-full max-h-60 object-cover" />
                             ) : (
-                              <img src={msg.mediaUrl} alt="" className="w-full max-h-60 object-cover" />
+                              <img src={msg.mediaUrl} alt="Snap" className="w-full max-h-60 object-cover" />
                             )}
                             {msg.text && (
-                              <p className="p-2.5 text-xs text-white/90">{msg.text}</p>
+                              <p className="p-2.5 text-xs text-white/90 break-words">{msg.text}</p>
                             )}
                           </div>
                         ) : (
                           /* Standard Text Message */
                           <div
-                            className={`px-4 py-2.5 rounded-2xl max-w-[78%] sm:max-w-md text-xs sm:text-sm font-medium ${
+                            className={`px-4 py-2.5 rounded-2xl max-w-[78%] sm:max-w-md text-xs sm:text-sm font-medium shadow-md ${
                               isMe
-                                ? 'bg-gradient-to-r from-[#FFFC00] to-[#FFE600] text-black font-semibold rounded-br-sm shadow-md shadow-[#FFFC00]/15'
-                                : 'bg-[#181824] text-white border border-white/10 rounded-bl-sm'
+                                ? 'bg-gradient-to-r from-[#FFFC00] to-[#FFE600] text-black font-semibold rounded-br-xs shadow-[#FFFC00]/15'
+                                : 'bg-[#181824] text-white border border-white/10 rounded-bl-xs'
                             }`}
                           >
-                            <p className="leading-relaxed break-words">{msg.text}</p>
+                            <p className="leading-relaxed break-words whitespace-pre-wrap select-text">
+                              {msg.text}
+                            </p>
                           </div>
                         )}
 
-                        <span className="text-[10px] text-white/40 mt-1 px-1 font-mono">
-                          {msg.time}
-                        </span>
+                        <div className="flex items-center gap-1 mt-1 px-1">
+                          <span className="text-[10px] text-white/40 font-mono">
+                            {msg.time}
+                          </span>
+                          {isMe && (
+                            <span className="text-[10px] text-[#FFFC00]/70 flex items-center">
+                              <CheckCheck className="w-3 h-3" />
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Chat Input Bar */}
+                {/* Modern Snapchat Chat Input Bar */}
                 <form
                   onSubmit={handleSendMessage}
-                  className="p-3 sm:p-4 border-t border-white/8 flex items-center gap-2 bg-[#0E0E18]/60"
+                  className="p-2.5 sm:p-3 border-t border-white/10 flex items-center gap-2 bg-[#0E0E18]/95 backdrop-blur-xl flex-shrink-0 w-full min-w-0 pb-safe"
                 >
                   {/* Camera quick-shoot button */}
                   <button
@@ -585,34 +642,40 @@ export default function ChatPage() {
                     onClick={() =>
                       navigate('/camera', { state: { sendToFriendId: activeFriend.id } })
                     }
-                    className="w-10 h-10 rounded-2xl glass-pill flex items-center justify-center text-white/70 hover:text-[#FFFC00] hover:scale-105 transition-all"
+                    className="w-10 h-10 rounded-full btn-snap flex-shrink-0 flex items-center justify-center text-black hover:scale-105 active:scale-95 shadow-md shadow-[#FFFC00]/20 transition-all"
                     title="Camera Snap"
                   >
-                    <Camera className="w-5 h-5 text-[#FFFC00]" />
+                    <Camera className="w-5 h-5 text-black" />
                   </button>
 
                   {/* Attachment button */}
                   <button
                     type="button"
                     onClick={() => mediaInputRef.current?.click()}
-                    className="w-10 h-10 rounded-2xl glass-pill flex items-center justify-center text-white/70 hover:text-white"
+                    className="w-10 h-10 rounded-full glass-pill flex-shrink-0 flex items-center justify-center text-white/70 hover:text-white active:scale-95 transition-all"
                     title="Attach Photo or Video"
                   >
                     <Paperclip className="w-4 h-4" />
                   </button>
 
+                  {/* Text input */}
                   <input
                     type="text"
                     placeholder={`Chat with ${activeFriend.name.split(' ')[0]}...`}
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
-                    className="flex-1 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-xs sm:text-sm text-white placeholder-white/40 focus:outline-none focus:border-[#FFFC00]"
+                    className="flex-1 min-w-0 h-10 px-4 rounded-full bg-white/8 border border-white/12 text-xs sm:text-sm text-white placeholder-white/40 focus:outline-none focus:border-[#FFFC00] focus:bg-white/10 focus:ring-1 focus:ring-[#FFFC00]/40 transition-all"
                   />
 
+                  {/* Send button */}
                   <button
                     type="submit"
                     disabled={!messageInput.trim()}
-                    className="w-10 h-10 rounded-2xl snap-gradient flex items-center justify-center text-black font-bold disabled:opacity-40 transition-opacity"
+                    className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center transition-all ${
+                      messageInput.trim()
+                        ? 'snap-gradient text-black font-bold shadow-lg shadow-[#FFFC00]/30 hover:scale-105 active:scale-95'
+                        : 'bg-white/5 text-white/20 cursor-not-allowed'
+                    }`}
                   >
                     <Send className="w-4 h-4 ml-0.5" />
                   </button>
