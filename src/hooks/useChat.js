@@ -9,6 +9,7 @@ import {
   replaySnapInCloud,
   markSnapSavedInCloud,
   sendSnapToMultipleFriendsInCloud,
+  fetchRegisteredUsersInCloud,
   fetchQuickAddSuggestionsInCloud,
   subscribeToIncomingFriendRequestsInCloud,
   subscribeToSentFriendRequestsInCloud,
@@ -43,6 +44,11 @@ export function useChat() {
   const [sentRequests, setSentRequests] = useState([]);
   const [quickAddSuggestions, setQuickAddSuggestions] = useState([]);
   const [isLoadingQuickAdd, setIsLoadingQuickAdd] = useState(false);
+  const [peopleOnSnapLens, setPeopleOnSnapLens] = useState([]);
+  const [isLoadingPeople, setIsLoadingPeople] = useState(false);
+  const [isLoadingMorePeople, setIsLoadingMorePeople] = useState(false);
+  const [hasMorePeople, setHasMorePeople] = useState(false);
+  const [lastPeopleDoc, setLastPeopleDoc] = useState(null);
   const [activeFriendId, setActiveFriendId] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -169,6 +175,67 @@ export function useChat() {
   useEffect(() => {
     refreshQuickAdd();
   }, [refreshQuickAdd]);
+
+  // 1d. Fetch "People on SnapLens" (All registered Firestore users) with pagination
+  const fetchPeople = useCallback(
+    async (isRefresh = false) => {
+      if (!isFirebaseConfigured || !currentUser) {
+        setPeopleOnSnapLens([]);
+        return;
+      }
+      setIsLoadingPeople(true);
+      try {
+        const res = await fetchRegisteredUsersInCloud({
+          currentUserId: currentUser.uid,
+          lastVisibleDoc: null,
+          pageSize: 16,
+        });
+        setPeopleOnSnapLens(res.users);
+        setLastPeopleDoc(res.lastDoc);
+        setHasMorePeople(res.hasMore);
+      } catch (e) {
+        console.warn('fetchPeople error:', e);
+      } finally {
+        setIsLoadingPeople(false);
+      }
+    },
+    [isFirebaseConfigured, currentUser]
+  );
+
+  const loadMorePeople = useCallback(async () => {
+    if (
+      !isFirebaseConfigured ||
+      !currentUser ||
+      !hasMorePeople ||
+      isLoadingMorePeople ||
+      !lastPeopleDoc
+    ) {
+      return;
+    }
+    setIsLoadingMorePeople(true);
+    try {
+      const res = await fetchRegisteredUsersInCloud({
+        currentUserId: currentUser.uid,
+        lastVisibleDoc: lastPeopleDoc,
+        pageSize: 16,
+      });
+      setPeopleOnSnapLens((prev) => {
+        const existingMap = new Set(prev.map((u) => u.id));
+        const newUsers = res.users.filter((u) => !existingMap.has(u.id));
+        return [...prev, ...newUsers];
+      });
+      setLastPeopleDoc(res.lastDoc);
+      setHasMorePeople(res.hasMore);
+    } catch (e) {
+      console.warn('loadMorePeople error:', e);
+    } finally {
+      setIsLoadingMorePeople(false);
+    }
+  }, [isFirebaseConfigured, currentUser, hasMorePeople, isLoadingMorePeople, lastPeopleDoc]);
+
+  useEffect(() => {
+    fetchPeople();
+  }, [fetchPeople]);
 
   // Helper to determine friendship / request state with any user
   const getRequestStatus = useCallback(
@@ -349,9 +416,10 @@ export function useChat() {
       }
 
       refreshQuickAdd();
+      fetchPeople();
       return { success: true, friend: newFriend };
     },
-    [friendRequests, friends, isFirebaseConfigured, currentUser, refreshQuickAdd]
+    [friendRequests, friends, isFirebaseConfigured, currentUser, refreshQuickAdd, fetchPeople]
   );
 
   // 6. Reject Friend Request
@@ -389,9 +457,10 @@ export function useChat() {
       }
 
       refreshQuickAdd();
+      fetchPeople();
       return { success: true };
     },
-    [friends, activeFriendId, isFirebaseConfigured, currentUser, refreshQuickAdd]
+    [friends, activeFriendId, isFirebaseConfigured, currentUser, refreshQuickAdd, fetchPeople]
   );
 
   // 7. Send a Regular Text / Media Message
@@ -763,6 +832,12 @@ export function useChat() {
     quickAddSuggestions,
     isLoadingQuickAdd,
     refreshQuickAdd,
+    peopleOnSnapLens,
+    isLoadingPeople,
+    isLoadingMorePeople,
+    hasMorePeople,
+    loadMorePeople,
+    fetchPeople,
     activeFriend,
     activeFriendId,
     setActiveFriendId,

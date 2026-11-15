@@ -16,6 +16,9 @@ import {
   Flame,
   Loader2,
   AlertTriangle,
+  ChevronDown,
+  Globe,
+  RefreshCw,
 } from 'lucide-react';
 import Header from '../components/Header';
 import { useChat } from '../hooks/useChat';
@@ -32,6 +35,12 @@ export default function AddFriendsPage() {
     quickAddSuggestions,
     isLoadingQuickAdd,
     refreshQuickAdd,
+    peopleOnSnapLens,
+    isLoadingPeople,
+    isLoadingMorePeople,
+    hasMorePeople,
+    loadMorePeople,
+    fetchPeople,
     searchUsers,
     searchResults,
     isSearching,
@@ -46,6 +55,20 @@ export default function AddFriendsPage() {
   const [myFriendsFilter, setMyFriendsFilter] = useState('');
   const [friendToRemove, setFriendToRemove] = useState(null);
   const [processingUserIds, setProcessingUserIds] = useState(new Set());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Handle Refresh All Data
+  const handleRefreshAll = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([refreshQuickAdd(), fetchPeople(true)]);
+      toast.success('Refreshed members & suggestions! ✨');
+    } catch {
+      toast.error('Failed to refresh.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Debounced search for Firestore users
   useEffect(() => {
@@ -166,11 +189,12 @@ export default function AddFriendsPage() {
           </div>
 
           <button
-            onClick={() => refreshQuickAdd()}
-            className="w-9 h-9 rounded-xl glass-pill flex items-center justify-center text-white/60 hover:text-[#FFFC00] transition-colors"
-            title="Refresh suggestions"
+            onClick={handleRefreshAll}
+            disabled={isRefreshing || isLoadingPeople || isLoadingQuickAdd}
+            className="w-9 h-9 rounded-xl glass-pill flex items-center justify-center text-white/60 hover:text-[#FFFC00] transition-colors disabled:opacity-50"
+            title="Refresh members & suggestions"
           >
-            <Sparkles className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#FFFC00]' : ''}`} />
           </button>
         </div>
 
@@ -251,6 +275,16 @@ export default function AddFriendsPage() {
                           <p className="text-xs text-white/50 font-mono truncate">
                             @{user.handle}
                           </p>
+                          {user.bio && (
+                            <p className="text-[11px] text-white/60 truncate mt-0.5 line-clamp-1 italic">
+                              {user.bio}
+                            </p>
+                          )}
+                          {user.mutualCount > 0 && (
+                            <span className="text-[10px] text-[#FFFC00]/90 font-medium block truncate mt-0.5">
+                              {user.mutualCount} mutual friend{user.mutualCount > 1 ? 's' : ''}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -413,21 +447,44 @@ export default function AddFriendsPage() {
                           <p className="text-xs text-white/50 font-mono truncate">
                             @{user.handle}
                           </p>
+                          {user.bio && (
+                            <p className="text-[11px] text-white/60 truncate mt-0.5 line-clamp-1 italic">
+                              {user.bio}
+                            </p>
+                          )}
                           {user.mutualCount > 0 && (
-                            <span className="text-[10px] text-white/40 font-medium block truncate mt-0.5">
+                            <span className="text-[10px] text-[#FFFC00]/90 font-medium block truncate mt-0.5">
                               {user.mutualCount} mutual friend{user.mutualCount > 1 ? 's' : ''}
                             </span>
                           )}
                         </div>
                       </div>
 
-                      {/* Add Button */}
+                      {/* State-dependent Button */}
                       <div>
-                        {status === 'requested' ? (
+                        {status === 'friends' ? (
+                          <div className="px-3.5 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-xs flex items-center gap-1.5 shadow-sm">
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>Friends</span>
+                          </div>
+                        ) : status === 'requested' ? (
                           <div className="px-3.5 py-1.5 rounded-full bg-[#FFFC00]/15 border border-[#FFFC00]/30 text-[#FFFC00] font-bold text-xs flex items-center gap-1.5 shadow-sm">
                             <Clock className="w-3.5 h-3.5" />
                             <span>Requested</span>
                           </div>
+                        ) : status === 'received' ? (
+                          <button
+                            onClick={() => {
+                              const req = friendRequests.find(
+                                (r) => r.senderId === (user.id || user.uid)
+                              );
+                              if (req) handleAccept(req);
+                            }}
+                            className="btn-snap px-4 py-1.5 rounded-full text-xs font-black text-black flex items-center gap-1.5 shadow-md shadow-[#FFFC00]/25 hover:scale-105 active:scale-95 transition-all"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            <span>Accept</span>
+                          </button>
                         ) : (
                           <button
                             disabled={isProcessing}
@@ -451,7 +508,152 @@ export default function AddFriendsPage() {
           </section>
         )}
 
-        {/* ── 5. MY FRIENDS SECTION ── */}
+        {/* ── 5. PEOPLE ON SNAPLENS SECTION ── */}
+        {!searchQuery.trim() && (
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-3.5 px-1">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-white/80 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-[#FFFC00]" />
+                  <span>People on SnapLens</span>
+                  {peopleOnSnapLens.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/80 text-[10px] font-bold">
+                      {peopleOnSnapLens.length}
+                    </span>
+                  )}
+                </h3>
+                <p className="text-[11px] text-white/45 mt-0.5">
+                  Discover registered creators and connect on SnapLens
+                </p>
+              </div>
+
+              {isLoadingPeople && (
+                <Loader2 className="w-4 h-4 animate-spin text-[#FFFC00]" />
+              )}
+            </div>
+
+            {isLoadingPeople && peopleOnSnapLens.length === 0 ? (
+              <div className="py-12 glass-panel rounded-2xl flex flex-col items-center justify-center text-white/40 gap-2 border border-white/10">
+                <Loader2 className="w-6 h-6 animate-spin text-[#FFFC00]" />
+                <span className="text-xs">Finding people on SnapLens...</span>
+              </div>
+            ) : peopleOnSnapLens.length === 0 ? (
+              <div className="py-10 glass-panel rounded-2xl text-center border border-white/10 p-6">
+                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3 text-[#FFFC00]">
+                  <Globe className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-bold text-white mb-1">No other registered users yet</h4>
+                <p className="text-xs text-white/40 max-w-sm mx-auto">
+                  When new members sign up for SnapLens, their profiles will appear here for you to add and snap with!
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {peopleOnSnapLens.map((user) => {
+                  const status = getRequestStatus(user.id || user.uid);
+                  const isProcessing = processingUserIds.has(user.id || user.uid);
+
+                  return (
+                    <motion.div
+                      key={user.id || user.uid}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3.5 glass-panel rounded-2xl border border-white/10 flex items-center justify-between gap-3 hover:border-white/20 transition-all"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={
+                            user.avatar ||
+                            `https://api.dicebear.com/7.x/bottts/svg?seed=${user.id || user.uid}`
+                          }
+                          alt={user.name}
+                          className="w-12 h-12 rounded-full object-cover border border-white/15 flex-shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-bold text-white truncate">
+                            {user.name}
+                          </h4>
+                          <p className="text-xs text-white/50 font-mono truncate">
+                            @{user.handle}
+                          </p>
+                          {user.bio && (
+                            <p className="text-[11px] text-white/60 truncate mt-0.5 line-clamp-1 italic">
+                              {user.bio}
+                            </p>
+                          )}
+                          {user.mutualCount > 0 && (
+                            <span className="text-[10px] text-[#FFFC00]/90 font-medium block truncate mt-0.5">
+                              {user.mutualCount} mutual friend{user.mutualCount > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Dynamic Action Button */}
+                      <div className="flex-shrink-0">
+                        {status === 'friends' ? (
+                          <div className="px-3.5 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-xs flex items-center gap-1.5 shadow-sm">
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>Friends</span>
+                          </div>
+                        ) : status === 'requested' ? (
+                          <div className="px-3.5 py-1.5 rounded-full bg-[#FFFC00]/15 border border-[#FFFC00]/30 text-[#FFFC00] font-bold text-xs flex items-center gap-1.5 shadow-sm">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>Requested</span>
+                          </div>
+                        ) : status === 'received' ? (
+                          <button
+                            onClick={() => {
+                              const req = friendRequests.find(
+                                (r) => r.senderId === (user.id || user.uid)
+                              );
+                              if (req) handleAccept(req);
+                            }}
+                            className="btn-snap px-4 py-1.5 rounded-full text-xs font-black text-black flex items-center gap-1.5 shadow-md shadow-[#FFFC00]/25 hover:scale-105 active:scale-95 transition-all"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            <span>Accept</span>
+                          </button>
+                        ) : (
+                          <button
+                            disabled={isProcessing}
+                            onClick={() => handleAddFriend(user)}
+                            className="btn-snap px-4 py-1.5 rounded-full text-xs font-black text-black flex items-center gap-1.5 shadow-md shadow-[#FFFC00]/25 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+                          >
+                            {isProcessing ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <UserPlus className="w-3.5 h-3.5" />
+                            )}
+                            <span>+ Add</span>
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+
+                {/* Pagination / Load More Button */}
+                {hasMorePeople && (
+                  <button
+                    onClick={loadMorePeople}
+                    disabled={isLoadingMorePeople}
+                    className="w-full py-3 rounded-2xl glass-pill text-xs font-bold text-white/80 hover:text-white flex items-center justify-center gap-2 transition-all mt-3 border border-white/10 hover:border-[#FFFC00]/30"
+                  >
+                    {isLoadingMorePeople ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-[#FFFC00]" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                    <span>Load More People</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── 6. MY FRIENDS SECTION ── */}
         {!searchQuery.trim() && (
           <section className="mb-8">
             <div className="flex items-center justify-between mb-3 px-1">
@@ -587,3 +789,4 @@ export default function AddFriendsPage() {
     </div>
   );
 }
+

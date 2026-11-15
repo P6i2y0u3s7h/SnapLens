@@ -13,6 +13,7 @@ import {
   where,
   orderBy,
   limit,
+  startAfter,
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -436,8 +437,32 @@ export async function deleteStoryFromCloud(storyId, storagePath) {
 // ─────────────────────────────────────────────────────────────────
 
 /**
- * Searches users registered in Firestore by username, name, or email
- * Excludes currently logged-in user
+ * Helper: Computes the genuine number of mutual friends between current user and target user
+ * by checking real friendship records in the Firestore 'friends' collection.
+ */
+async function getMutualFriendsCount(targetId, existingFriendIdsSet) {
+  if (!isFirebaseConfigured || !db || !existingFriendIdsSet || existingFriendIdsSet.size === 0 || !targetId) {
+    return 0;
+  }
+  try {
+    const fQuery = query(collection(db, 'friends'), where('userId', '==', targetId));
+    const snap = await getDocs(fQuery);
+    let count = 0;
+    snap.forEach((doc) => {
+      const data = doc.data();
+      if (data.friendId && existingFriendIdsSet.has(data.friendId)) {
+        count++;
+      }
+    });
+    return count;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Searches users registered in Firestore by username or full name
+ * Excludes currently logged-in user and never exposes private data (email, etc.)
  */
 export async function searchUsersInCloud(searchTerm, excludeUserId = null) {
   if (!isFirebaseConfigured || !db || !searchTerm?.trim()) return [];
@@ -448,24 +473,44 @@ export async function searchUsersInCloud(searchTerm, excludeUserId = null) {
     const snapshot = await getDocs(usersRef);
     const results = [];
 
+    // Get current user's friends for real mutual friends computation
+    const existingFriendIds = new Set();
+    if (excludeUserId) {
+      const friendsRef = collection(db, 'friends');
+      const fQuery = query(friendsRef, where('userId', '==', excludeUserId));
+      const fSnap = await getDocs(fQuery);
+      fSnap.forEach((d) => {
+        const data = d.data();
+        if (data.friendId) existingFriendIds.add(data.friendId);
+      });
+    }
+
+    const matchedDocs = [];
     snapshot.forEach((d) => {
       if (excludeUserId && d.id === excludeUserId) return;
       const data = d.data();
       const matchName = data.displayName?.toLowerCase().includes(term);
       const matchHandle = data.handle?.toLowerCase().includes(term);
-      const matchEmail = data.email?.toLowerCase().includes(term);
-      if (matchName || matchHandle || matchEmail) {
-        results.push({
-          id: d.id,
-          uid: d.id,
-          name: data.displayName || 'SnapLens User',
-          handle: data.handle || d.id.substring(0, 8),
-          avatar: data.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${d.id}`,
-          streak: data.streakCount || 0,
-          snapScore: data.snapScore || 1200,
-        });
+      if (matchName || matchHandle) {
+        matchedDocs.push(d);
       }
     });
+
+    for (const d of matchedDocs.slice(0, 30)) {
+      const data = d.data();
+      const mutualCount = await getMutualFriendsCount(d.id, existingFriendIds);
+      results.push({
+        id: d.id,
+        uid: d.id,
+        name: data.displayName || 'SnapLens User',
+        handle: data.handle || d.id.substring(0, 8),
+        avatar: data.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${d.id}`,
+        bio: data.bio || '',
+        streak: data.streakCount || 0,
+        snapScore: data.snapScore || 0,
+        mutualCount,
+      });
+    }
 
     return results;
   } catch (err) {
@@ -475,10 +520,92 @@ export async function searchUsersInCloud(searchTerm, excludeUserId = null) {
 }
 
 /**
+ * Fetches real registered users from Firestore for the "People on SnapLens" section.
+ * - Excludes the current user
+ * - Excludes users who are already friends
+ * - Computes genuine mutual friend counts
+ * - Supports pagination with startAfter and limit
+ */
+export async function fetchRegisteredUsersInCloud({
+  currentUserId,
+  lastVisibleDoc = null,
+  pageSize = 12,
+}) {
+  if (!isFirebaseConfigured || !db) return { users: [], lastDoc: null, hasMore: false };
+
+  try {
+    // 1. Get current friends IDs to exclude
+    const existingFriendIds = new Set();
+    if (currentUserId) {
+      const friendsRef = collection(db, 'friends');
+      const fQuery = query(friendsRef, where('userId', '==', currentUserId));
+      const fSnap = await getDocs(fQuery);
+      fSnap.forEach((d) => {
+        const data = d.data();
+        if (data.friendId) existingFriendIds.add(data.friendId);
+      });
+    }
+
+    // 2. Query users collection
+    const usersRef = collection(db, 'users');
+    const fetchLimit = Math.max(pageSize * 2, 24);
+    let q;
+
+    if (lastVisibleDoc) {
+      q = query(usersRef, startAfter(lastVisibleDoc), limit(fetchLimit));
+    } else {
+      q = query(usersRef, limit(fetchLimit));
+    }
+
+    const snapshot = await getDocs(q);
+    const rawDocs = snapshot.docs;
+    const lastDoc = rawDocs.length > 0 ? rawDocs[rawDocs.length - 1] : null;
+    const hasMore = rawDocs.length >= fetchLimit;
+
+    const filteredDocs = rawDocs.filter((d) => {
+      const uid = d.id;
+      return uid !== currentUserId && !existingFriendIds.has(uid);
+    });
+
+    const pageSlice = filteredDocs.slice(0, pageSize);
+    const users = await Promise.all(
+      pageSlice.map(async (d) => {
+        const data = d.data();
+        const uid = d.id;
+        const mutualCount = await getMutualFriendsCount(uid, existingFriendIds);
+
+        return {
+          id: uid,
+          uid,
+          name: data.displayName || 'SnapLens User',
+          handle: data.handle || uid.substring(0, 8),
+          avatar: data.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${uid}`,
+          bio: data.bio || '',
+          streak: data.streakCount || 0,
+          snapScore: data.snapScore || 0,
+          createdAt: data.createdAtMs || (data.createdAt?.toMillis ? data.createdAt.toMillis() : null),
+          mutualCount,
+        };
+      })
+    );
+
+    return {
+      users,
+      lastDoc,
+      hasMore,
+    };
+  } catch (err) {
+    console.warn('fetchRegisteredUsersInCloud error:', err);
+    return { users: [], lastDoc: null, hasMore: false };
+  }
+}
+
+/**
  * Fetches Quick Add suggested real users from Firestore
  * (Excludes current user, already added friends, and pending requests)
+ * Suggests users based on genuine mutual friends and recently registered members.
  */
-export async function fetchQuickAddSuggestionsInCloud(currentUserId, limitCount = 12) {
+export async function fetchQuickAddSuggestionsInCloud(currentUserId, limitCount = 10) {
   if (!isFirebaseConfigured || !db || !currentUserId) return [];
 
   try {
@@ -513,26 +640,48 @@ export async function fetchQuickAddSuggestionsInCloud(currentUserId, limitCount 
     sentSnap.forEach((d) => pendingIds.add(d.data().receiverId));
     recSnap.forEach((d) => pendingIds.add(d.data().senderId));
 
-    const suggestions = [];
+    const candidateDocs = [];
     snapshot.forEach((d) => {
       const uid = d.id;
       if (uid === currentUserId || existingFriendIds.has(uid) || pendingIds.has(uid)) {
         return;
       }
-      const data = d.data();
-      suggestions.push({
-        id: uid,
-        uid,
-        name: data.displayName || 'Snap Friend',
-        handle: data.handle || uid.substring(0, 8),
-        avatar: data.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${uid}`,
-        streak: data.streakCount || 0,
-        snapScore: data.snapScore || 500,
-        mutualCount: (d.id.charCodeAt(0) % 4) + 1, // deterministic mutual friends indicator
-      });
+      candidateDocs.push(d);
     });
 
-    return suggestions.slice(0, limitCount);
+    // Compute genuine mutual friends and score
+    const suggestionsWithScores = await Promise.all(
+      candidateDocs.map(async (d) => {
+        const data = d.data();
+        const uid = d.id;
+        const mutualCount = await getMutualFriendsCount(uid, existingFriendIds);
+        const createdAtMs =
+          data.createdAtMs || (data.createdAt?.toMillis ? data.createdAt.toMillis() : 0);
+
+        return {
+          id: uid,
+          uid,
+          name: data.displayName || 'Snap Friend',
+          handle: data.handle || uid.substring(0, 8),
+          avatar: data.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${uid}`,
+          bio: data.bio || '',
+          streak: data.streakCount || 0,
+          snapScore: data.snapScore || 0,
+          mutualCount,
+          createdAtMs,
+        };
+      })
+    );
+
+    // Rank: candidates with mutual friends first (descending), then newest joined users
+    suggestionsWithScores.sort((a, b) => {
+      if (b.mutualCount !== a.mutualCount) {
+        return b.mutualCount - a.mutualCount;
+      }
+      return b.createdAtMs - a.createdAtMs;
+    });
+
+    return suggestionsWithScores.slice(0, limitCount);
   } catch (err) {
     console.warn('Quick add fetch error:', err);
     return [];

@@ -40,19 +40,37 @@ export function AuthProvider({ children }) {
             try {
               const docSnap = await getDoc(doc(db, 'users', user.uid));
               if (docSnap.exists()) {
-                setUserProfile(docSnap.data());
+                const existingData = docSnap.data();
+                setUserProfile(existingData);
+                // Backfill lowercase search keys if missing
+                const rawName = existingData.displayName || user.displayName || user.email?.split('@')[0] || 'User';
+                const rawHandle = existingData.handle || rawName.toLowerCase().replace(/[^a-z0-9_]/g, '') || `user_${user.uid.substring(0, 6)}`;
+                if (!existingData.handleLower || !existingData.displayNameLower || !existingData.createdAtMs) {
+                  const updates = {
+                    handle: rawHandle,
+                    handleLower: rawHandle.toLowerCase(),
+                    displayNameLower: rawName.toLowerCase(),
+                    createdAtMs: existingData.createdAtMs || Date.now(),
+                  };
+                  updateDoc(doc(db, 'users', user.uid), updates).catch(() => {});
+                }
               } else {
-                // Initialize default profile document
+                // Initialize default profile document for registered users without Firestore docs
+                const rawName = user.displayName || user.email?.split('@')[0] || 'Snap User';
+                const cleanHandle = rawName.toLowerCase().replace(/[^a-z0-9_]/g, '') || `user_${user.uid.substring(0, 6)}`;
+                const now = Date.now();
                 const newProfile = {
                   uid: user.uid,
-                  email: user.email,
-                  displayName: user.displayName || user.email.split('@')[0],
-                  photoURL: user.photoURL || DEFAULT_DEMO_USER.photoURL,
-                  bio: 'New SnapLens Creator ✨',
-                  handle: (user.displayName || user.email.split('@')[0]).toLowerCase().replace(/\s+/g, '_'),
+                  displayName: rawName,
+                  displayNameLower: rawName.toLowerCase(),
+                  photoURL: user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.uid}`,
+                  bio: 'SnapLens Creator ✨',
+                  handle: cleanHandle,
+                  handleLower: cleanHandle.toLowerCase(),
                   streakCount: 0,
                   snapsCount: 0,
                   createdAt: serverTimestamp(),
+                  createdAtMs: now,
                 };
                 await setDoc(doc(db, 'users', user.uid), newProfile);
                 setUserProfile(newProfile);
@@ -106,16 +124,22 @@ export function AuthProvider({ children }) {
           photoURL: photo,
         });
 
+        const cleanHandle =
+          displayName.toLowerCase().replace(/[^a-z0-9_]/g, '') || `user_${user.uid.substring(0, 6)}`;
+        const now = Date.now();
+
         const profileData = {
           uid: user.uid,
-          email,
           displayName,
+          displayNameLower: displayName.toLowerCase(),
           photoURL: photo,
           bio: 'SnapLens Creator ✨',
-          handle: displayName.toLowerCase().replace(/\s+/g, '_'),
+          handle: cleanHandle,
+          handleLower: cleanHandle.toLowerCase(),
           streakCount: 0,
           snapsCount: 0,
           createdAt: serverTimestamp(),
+          createdAtMs: now,
         };
 
         if (db) {
