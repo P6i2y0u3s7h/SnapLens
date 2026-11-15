@@ -22,8 +22,7 @@ import {
   Edit2,
   X,
   Check,
-  UserPlus,
-  Copy
+  UserPlus
 } from 'lucide-react';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
@@ -160,26 +159,9 @@ export default function ProfilePage() {
                       VIP
                     </span>
                   </h1>
-                  <p className="text-white/40 text-xs mt-1 flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
-                    <span className="font-mono text-white/75 font-semibold">@{userHandle}</span>
-                    {userId && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (navigator?.clipboard?.writeText) {
-                            navigator.clipboard.writeText(userId);
-                            toast.success('User ID copied to clipboard!', { icon: '📋' });
-                          }
-                        }}
-                        className="text-[10px] font-mono text-white/40 hover:text-[#FFFC00] bg-white/5 hover:bg-white/10 px-1.5 py-0.5 rounded border border-white/10 transition-colors flex items-center gap-1"
-                        title={`Click to copy User ID: ${userId}`}
-                      >
-                        <Copy className="w-2.5 h-2.5" />
-                        <span>ID: {userId.length > 10 ? `${userId.substring(0, 8)}...` : userId}</span>
-                      </button>
-                    )}
-                    <span>•</span>
-                    <span>Snap Score: {memories.length * 25 + 500} 🔥</span>
+                  <p className="text-white/40 text-xs mt-0.5">
+                    <span className="font-mono text-white/70 font-semibold">@{userHandle}</span> • Snap Score:{' '}
+                    {memories.length * 25 + 500} 🔥
                   </p>
                 </div>
 
@@ -478,7 +460,7 @@ export default function ProfilePage() {
 
                   <div>
                     <label className="text-[11px] font-semibold text-white/70 block mb-1">
-                      User ID / Handle
+                      Username
                     </label>
                     <div className="relative">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 text-xs font-mono font-bold">@</span>
