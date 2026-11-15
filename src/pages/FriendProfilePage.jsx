@@ -267,9 +267,7 @@ export default function FriendProfilePage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
 
-          <span className="text-xs font-black uppercase tracking-wider text-white/50 font-mono">
-            @{profile.handle}
-          </span>
+          <div />
 
           {/* Options Dropdown */}
           <div className="relative">
