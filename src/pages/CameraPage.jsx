@@ -35,7 +35,9 @@ import {
   Pause,
   Type,
   Search,
-  Filter
+  Filter,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useCamera, FILTERS } from '../hooks/useCamera';
 import { useFaceTracking } from '../hooks/useFaceTracking';
@@ -139,6 +141,7 @@ export default function CameraPage() {
   const [filterSearchQuery, setFilterSearchQuery] = useState('');
   const [showFilterSearch, setShowFilterSearch] = useState(false);
   const [showBeautyPanel, setShowBeautyPanel] = useState(false);
+  const [isBeautyCollapsed, setIsBeautyCollapsed] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [flashAnimation, setFlashAnimation] = useState(false);
@@ -808,7 +811,7 @@ export default function CameraPage() {
 
       {/* TOP BAR CONTROLS (Hidden when previewing captured snap) */}
       {!capturedPhotoUrl && !recordedVideoData && (
-        <header className="absolute top-0 left-0 right-0 z-30 p-3 sm:p-5 flex items-center justify-between bg-gradient-to-b from-black/85 via-black/40 to-transparent">
+        <header className="absolute top-0 left-0 right-0 z-30 pt-safe p-2.5 sm:p-5 flex items-center justify-between bg-gradient-to-b from-black/85 via-black/40 to-transparent">
           {/* Left: Close button & Logo */}
           <div className="flex items-center gap-2 sm:gap-3">
             <button
@@ -1032,210 +1035,239 @@ export default function CameraPage() {
           </div>
         )}
 
-        {/* Beauty Tuning Drawer */}
+        {/* Beauty Tuning Drawer (Collapsible & Non-Overlapping Mobile Architecture) */}
         <AnimatePresence>
           {showBeautyPanel && !capturedPhotoUrl && !recordedVideoData && (
             <motion.div
-              initial={{ opacity: 0, x: 30, scale: 0.95 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 30, scale: 0.95 }}
-              transition={{ duration: 0.18 }}
-              className="absolute right-3 sm:right-16 top-1/2 -translate-y-1/2 z-40 w-72 sm:w-80 glass-panel rounded-3xl p-4 sm:p-5 border border-white/20 shadow-2xl touch-auto pointer-events-auto"
+              initial={{ opacity: 0, y: -12, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -12, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className={`absolute z-40 glass-panel rounded-3xl border border-white/20 shadow-2xl touch-auto pointer-events-auto transition-all ${
+                isBeautyCollapsed
+                  ? 'top-16 right-3 sm:right-6 p-1.5 w-auto'
+                  : 'top-16 right-3 sm:right-6 sm:top-1/2 sm:-translate-y-1/2 w-[calc(100vw-24px)] max-w-xs sm:w-80 p-3.5 sm:p-5 max-h-[50vh] sm:max-h-[75vh] overflow-y-auto no-scrollbar'
+              }`}
             >
-              {/* Header */}
-              <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-white/10">
-                <div className="flex items-center gap-2">
-                  <Sliders className="w-4 h-4 text-[#FFFC00]" />
-                  <span className="font-bold text-xs sm:text-sm text-white">Beauty & Tuning</span>
-                </div>
+              {isBeautyCollapsed ? (
+                // Collapsed Mini Pill: Tap to re-expand without leaving camera
                 <button
-                  onClick={() => setShowBeautyPanel(false)}
-                  className="w-7 h-7 rounded-full glass-pill flex items-center justify-center text-white/70 hover:text-white hover:bg-white/15 transition-colors"
-                  title="Close Beauty Panel"
+                  onClick={() => setIsBeautyCollapsed(false)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-white hover:text-[#FFFC00] transition-colors focus:outline-none"
+                  title="Expand Beauty Panel"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <Sliders className="w-3.5 h-3.5 text-[#FFFC00]" />
+                  <span className="text-[11px] font-bold text-[#FFFC00]">Beauty Active</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-white/70" />
                 </button>
-              </div>
+              ) : (
+                // Full Expanded Beauty & Tuning Interface
+                <>
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-[#FFFC00]" />
+                      <span className="font-bold text-xs sm:text-sm text-white">Beauty & Tuning</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setIsBeautyCollapsed(true)}
+                        className="w-6 h-6 rounded-full glass-pill flex items-center justify-center text-white/70 hover:text-white"
+                        title="Collapse panel"
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setShowBeautyPanel(false)}
+                        className="w-6 h-6 rounded-full glass-pill flex items-center justify-center text-white/70 hover:text-white hover:bg-white/15 transition-colors"
+                        title="Close Beauty Panel"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
 
-              {/* Quick Presets */}
-              <div className="mb-3.5">
-                <span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider block mb-1.5">
-                  Quick Presets
-                </span>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[
-                    { label: 'Natural', config: { smoothing: 0, brightness: 100, contrast: 100, saturation: 100 } },
-                    { label: 'Glow', config: { smoothing: 1.5, brightness: 108, contrast: 102, saturation: 105 } },
-                    { label: 'Porcelain', config: { smoothing: 2.5, brightness: 112, contrast: 98, saturation: 95 } },
-                    { label: 'Warm', config: { smoothing: 1.0, brightness: 106, contrast: 108, saturation: 118 } },
-                  ].map((preset) => {
-                    const isActive =
-                      beauty.smoothing === preset.config.smoothing &&
-                      beauty.brightness === preset.config.brightness &&
-                      beauty.contrast === preset.config.contrast &&
-                      beauty.saturation === preset.config.saturation;
+                  {/* Quick Presets */}
+                  <div className="mb-3">
+                    <span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider block mb-1">
+                      Quick Presets
+                    </span>
+                    <div className="grid grid-cols-4 gap-1">
+                      {[
+                        { label: 'Natural', config: { smoothing: 0, brightness: 100, contrast: 100, saturation: 100 } },
+                        { label: 'Glow', config: { smoothing: 1.5, brightness: 108, contrast: 102, saturation: 105 } },
+                        { label: 'Porcelain', config: { smoothing: 2.5, brightness: 112, contrast: 98, saturation: 95 } },
+                        { label: 'Warm', config: { smoothing: 1.0, brightness: 106, contrast: 108, saturation: 118 } },
+                      ].map((preset) => {
+                        const isActive =
+                          beauty.smoothing === preset.config.smoothing &&
+                          beauty.brightness === preset.config.brightness &&
+                          beauty.contrast === preset.config.contrast &&
+                          beauty.saturation === preset.config.saturation;
+                        return (
+                          <button
+                            key={preset.label}
+                            onClick={() => {
+                              setBeauty(preset.config);
+                              playFilterPopSound();
+                            }}
+                            className={`py-1 px-1 rounded-lg text-[10px] font-bold text-center transition-all ${
+                              isActive
+                                ? 'bg-[#FFFC00] text-black shadow-md shadow-[#FFFC00]/30'
+                                : 'bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    {/* Smoothing */}
+                    <div>
+                      <div className="flex justify-between mb-1 font-medium">
+                        <span className="text-white/80">Skin Smoothing</span>
+                        <span className="text-[#FFFC00] font-mono font-bold">
+                          {(Math.round(beauty.smoothing * 10) / 10).toFixed(1)}px
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="5"
+                        step="0.25"
+                        value={beauty.smoothing}
+                        onInput={(e) =>
+                          setBeauty((prev) => ({
+                            ...prev,
+                            smoothing: parseFloat(Number(e.target.value).toFixed(2)),
+                          }))
+                        }
+                        onChange={(e) =>
+                          setBeauty((prev) => ({
+                            ...prev,
+                            smoothing: parseFloat(Number(e.target.value).toFixed(2)),
+                          }))
+                        }
+                        className="snap-slider"
+                      />
+                    </div>
+
+                    {/* Brightness */}
+                    <div>
+                      <div className="flex justify-between mb-1 font-medium">
+                        <span className="text-white/80">Brightness</span>
+                        <span className="text-[#FFFC00] font-mono font-bold">{beauty.brightness}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="60"
+                        max="140"
+                        step="2"
+                        value={beauty.brightness}
+                        onInput={(e) =>
+                          setBeauty((prev) => ({
+                            ...prev,
+                            brightness: parseInt(e.target.value, 10),
+                          }))
+                        }
+                        onChange={(e) =>
+                          setBeauty((prev) => ({
+                            ...prev,
+                            brightness: parseInt(e.target.value, 10),
+                          }))
+                        }
+                        className="snap-slider"
+                      />
+                    </div>
+
+                    {/* Contrast */}
+                    <div>
+                      <div className="flex justify-between mb-1 font-medium">
+                        <span className="text-white/80">Contrast</span>
+                        <span className="text-[#FFFC00] font-mono font-bold">{beauty.contrast}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="70"
+                        max="140"
+                        step="2"
+                        value={beauty.contrast}
+                        onInput={(e) =>
+                          setBeauty((prev) => ({
+                            ...prev,
+                            contrast: parseInt(e.target.value, 10),
+                          }))
+                        }
+                        onChange={(e) =>
+                          setBeauty((prev) => ({
+                            ...prev,
+                            contrast: parseInt(e.target.value, 10),
+                          }))
+                        }
+                        className="snap-slider"
+                      />
+                    </div>
+
+                    {/* Saturation */}
+                    <div>
+                      <div className="flex justify-between mb-1 font-medium">
+                        <span className="text-white/80">Saturation</span>
+                        <span className="text-[#FFFC00] font-mono font-bold">{beauty.saturation}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="50"
+                        max="180"
+                        step="5"
+                        value={beauty.saturation}
+                        onInput={(e) =>
+                          setBeauty((prev) => ({
+                            ...prev,
+                            saturation: parseInt(e.target.value, 10),
+                          }))
+                        }
+                        onChange={(e) =>
+                          setBeauty((prev) => ({
+                            ...prev,
+                            saturation: parseInt(e.target.value, 10),
+                          }))
+                        }
+                        className="snap-slider"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Reset Defaults Button */}
+                  {(() => {
+                    const isModified =
+                      beauty.smoothing > 0 ||
+                      beauty.brightness !== 100 ||
+                      beauty.contrast !== 100 ||
+                      beauty.saturation !== 100;
                     return (
                       <button
-                        key={preset.label}
                         onClick={() => {
-                          setBeauty(preset.config);
+                          setBeauty({ smoothing: 0, brightness: 100, contrast: 100, saturation: 100 });
                           playFilterPopSound();
+                          toast('Beauty settings reset to defaults', { icon: '✨' });
                         }}
-                        className={`py-1 px-1 rounded-lg text-[10px] font-bold text-center transition-all ${
-                          isActive
-                            ? 'bg-[#FFFC00] text-black shadow-md shadow-[#FFFC00]/30'
-                            : 'bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10'
+                        disabled={!isModified}
+                        className={`w-full mt-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                          isModified
+                            ? 'border border-[#FFFC00]/50 bg-[#FFFC00]/15 hover:bg-[#FFFC00]/25 text-[#FFFC00] shadow-md shadow-[#FFFC00]/15 active:scale-95 cursor-pointer'
+                            : 'bg-white/5 text-white/30 border border-transparent cursor-not-allowed'
                         }`}
                       >
-                        {preset.label}
+                        <RotateCcw className={`w-3.5 h-3.5 ${isModified ? 'text-[#FFFC00]' : 'text-white/30'}`} />
+                        <span>Reset Defaults</span>
                       </button>
                     );
-                  })}
-                </div>
-              </div>
-
-              <div className="space-y-3.5 text-xs">
-                {/* Smoothing */}
-                <div>
-                  <div className="flex justify-between mb-1 font-medium">
-                    <span className="text-white/80">Skin Smoothing</span>
-                    <span className="text-[#FFFC00] font-mono font-bold">
-                      {(Math.round(beauty.smoothing * 10) / 10).toFixed(1)}px
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="5"
-                    step="0.25"
-                    value={beauty.smoothing}
-                    onInput={(e) =>
-                      setBeauty((prev) => ({
-                        ...prev,
-                        smoothing: parseFloat(Number(e.target.value).toFixed(2)),
-                      }))
-                    }
-                    onChange={(e) =>
-                      setBeauty((prev) => ({
-                        ...prev,
-                        smoothing: parseFloat(Number(e.target.value).toFixed(2)),
-                      }))
-                    }
-                    className="snap-slider"
-                  />
-                </div>
-
-                {/* Brightness */}
-                <div>
-                  <div className="flex justify-between mb-1 font-medium">
-                    <span className="text-white/80">Brightness</span>
-                    <span className="text-[#FFFC00] font-mono font-bold">{beauty.brightness}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="60"
-                    max="140"
-                    step="2"
-                    value={beauty.brightness}
-                    onInput={(e) =>
-                      setBeauty((prev) => ({
-                        ...prev,
-                        brightness: parseInt(e.target.value, 10),
-                      }))
-                    }
-                    onChange={(e) =>
-                      setBeauty((prev) => ({
-                        ...prev,
-                        brightness: parseInt(e.target.value, 10),
-                      }))
-                    }
-                    className="snap-slider"
-                  />
-                </div>
-
-                {/* Contrast */}
-                <div>
-                  <div className="flex justify-between mb-1 font-medium">
-                    <span className="text-white/80">Contrast</span>
-                    <span className="text-[#FFFC00] font-mono font-bold">{beauty.contrast}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="70"
-                    max="140"
-                    step="2"
-                    value={beauty.contrast}
-                    onInput={(e) =>
-                      setBeauty((prev) => ({
-                        ...prev,
-                        contrast: parseInt(e.target.value, 10),
-                      }))
-                    }
-                    onChange={(e) =>
-                      setBeauty((prev) => ({
-                        ...prev,
-                        contrast: parseInt(e.target.value, 10),
-                      }))
-                    }
-                    className="snap-slider"
-                  />
-                </div>
-
-                {/* Saturation */}
-                <div>
-                  <div className="flex justify-between mb-1 font-medium">
-                    <span className="text-white/80">Saturation</span>
-                    <span className="text-[#FFFC00] font-mono font-bold">{beauty.saturation}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="50"
-                    max="180"
-                    step="5"
-                    value={beauty.saturation}
-                    onInput={(e) =>
-                      setBeauty((prev) => ({
-                        ...prev,
-                        saturation: parseInt(e.target.value, 10),
-                      }))
-                    }
-                    onChange={(e) =>
-                      setBeauty((prev) => ({
-                        ...prev,
-                        saturation: parseInt(e.target.value, 10),
-                      }))
-                    }
-                    className="snap-slider"
-                  />
-                </div>
-              </div>
-
-              {/* Reset Defaults Button */}
-              {(() => {
-                const isModified =
-                  beauty.smoothing > 0 ||
-                  beauty.brightness !== 100 ||
-                  beauty.contrast !== 100 ||
-                  beauty.saturation !== 100;
-                return (
-                  <button
-                    onClick={() => {
-                      setBeauty({ smoothing: 0, brightness: 100, contrast: 100, saturation: 100 });
-                      playFilterPopSound();
-                      toast('Beauty settings reset to defaults', { icon: '✨' });
-                    }}
-                    disabled={!isModified}
-                    className={`w-full mt-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                      isModified
-                        ? 'border border-[#FFFC00]/50 bg-[#FFFC00]/15 hover:bg-[#FFFC00]/25 text-[#FFFC00] shadow-md shadow-[#FFFC00]/15 active:scale-95 cursor-pointer'
-                        : 'bg-white/5 text-white/30 border border-transparent cursor-not-allowed'
-                    }`}
-                  >
-                    <RotateCcw className={`w-3.5 h-3.5 ${isModified ? 'text-[#FFFC00]' : 'text-white/30'}`} />
-                    <span>Reset Defaults</span>
-                  </button>
-                );
-              })()}
+                  })()}
+                </>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -1496,7 +1528,7 @@ export default function CameraPage() {
 
       {/* BOTTOM CAMERA CONTROLS (Hidden when previewing captured snap) */}
       {!capturedPhotoUrl && !recordedVideoData && (
-        <footer className="absolute bottom-0 left-0 right-0 z-30 pb-3 sm:pb-5 pt-2 px-3 sm:px-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex flex-col items-center">
+        <footer className="absolute bottom-0 left-0 right-0 z-30 pb-safe pb-2.5 sm:pb-5 pt-2 px-2 sm:px-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex flex-col items-center">
           {/* Header Bar of Controls: Tabs + Active Lens Badge + Categories/Search */}
           <div className="w-full max-w-xl mx-auto flex items-center justify-between gap-2 mb-2 px-1">
             {/* Mode Switcher: AR Lenses vs Color LUTs */}
@@ -1606,7 +1638,7 @@ export default function CameraPage() {
           )}
 
           {/* Snapchat-Style Circular Lens Carousel */}
-          <div className="w-full max-w-xl mx-auto flex items-center justify-start sm:justify-center gap-3.5 overflow-x-auto no-scrollbar py-1.5 px-3 mb-2.5">
+          <div className="w-full max-w-xl mx-auto flex items-center gap-3 sm:gap-4 overflow-x-auto touch-scroll-x no-scrollbar py-2 px-3 sm:px-4 mb-2">
             {lensMode === 'ar_lenses' ? (
               // 10 Interactive AR Face Filters (Instant Switch & Zero Latency)
               filteredArFilters.map((lens) => {
@@ -1615,12 +1647,12 @@ export default function CameraPage() {
                   <button
                     key={lens.id}
                     onClick={() => handleSelectFaceLens(lens.id)}
-                    className="flex flex-col items-center gap-1 flex-shrink-0 group focus:outline-none transition-transform active:scale-95"
+                    className="flex flex-col items-center gap-1.5 flex-shrink-0 group focus:outline-none transition-transform active:scale-95 touch-manipulation cursor-pointer"
                   >
                     <div
-                      className={`relative w-13 h-13 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-2xl transition-transform duration-150 ${
+                      className={`relative w-14 h-14 sm:w-15 sm:h-15 rounded-full flex items-center justify-center text-2xl transition-transform duration-150 ${
                         isSelected
-                          ? 'scale-110 shadow-lg shadow-[#FFFC00]/40 ring-2 ring-[#FFFC00] ring-offset-2 ring-offset-black bg-[#FFFC00]/25'
+                          ? 'scale-110 shadow-lg shadow-[#FFFC00]/50 ring-2 ring-[#FFFC00] ring-offset-2 ring-offset-black bg-[#FFFC00]/25'
                           : 'opacity-75 group-hover:opacity-100 hover:scale-105 border border-white/20 bg-black/40'
                       }`}
                       style={{
@@ -1632,8 +1664,10 @@ export default function CameraPage() {
                       <span className="drop-shadow-md select-none">{lens.icon}</span>
                     </div>
                     <span
-                      className={`text-[10px] font-semibold tracking-tight transition-colors truncate max-w-[68px] text-center ${
-                        isSelected ? 'text-[#FFFC00] font-bold' : 'text-white/60'
+                      className={`w-[76px] sm:w-[84px] text-[10px] sm:text-[11px] font-semibold tracking-tight text-center leading-tight line-clamp-2 break-words transition-colors ${
+                        isSelected
+                          ? 'text-[#FFFC00] font-bold drop-shadow-[0_1px_4px_rgba(255,252,0,0.4)]'
+                          : 'text-white/70'
                       }`}
                     >
                       {lens.name}
@@ -1649,12 +1683,12 @@ export default function CameraPage() {
                   <button
                     key={filter.id}
                     onClick={() => handleSelectColorFilter(filter)}
-                    className="flex flex-col items-center gap-1 flex-shrink-0 group focus:outline-none active:scale-95"
+                    className="flex flex-col items-center gap-1.5 flex-shrink-0 group focus:outline-none active:scale-95 touch-manipulation cursor-pointer"
                   >
                     <div
-                      className={`relative w-13 h-13 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-transform duration-150 ${
+                      className={`relative w-14 h-14 sm:w-15 sm:h-15 rounded-full flex items-center justify-center transition-transform duration-150 ${
                         isSelected
-                          ? 'scale-110 shadow-lg shadow-[#FFFC00]/30 ring-2 ring-[#FFFC00] ring-offset-2 ring-offset-black'
+                          ? 'scale-110 shadow-lg shadow-[#FFFC00]/40 ring-2 ring-[#FFFC00] ring-offset-2 ring-offset-black'
                           : 'opacity-70 group-hover:opacity-100 hover:scale-105 border border-white/20 bg-black/40'
                       }`}
                       style={{
@@ -1669,8 +1703,10 @@ export default function CameraPage() {
                       />
                     </div>
                     <span
-                      className={`text-[10px] font-semibold tracking-tight transition-colors ${
-                        isSelected ? 'text-[#FFFC00] font-bold' : 'text-white/60'
+                      className={`w-[76px] sm:w-[84px] text-[10px] sm:text-[11px] font-semibold tracking-tight text-center leading-tight line-clamp-2 break-words transition-colors ${
+                        isSelected
+                          ? 'text-[#FFFC00] font-bold drop-shadow-[0_1px_4px_rgba(255,252,0,0.4)]'
+                          : 'text-white/70'
                       }`}
                     >
                       {filter.name}
@@ -1682,13 +1718,13 @@ export default function CameraPage() {
           </div>
 
           {/* Photo / Video Mode Selector */}
-          <div className="flex items-center gap-6 mb-3">
+          <div className="flex items-center justify-center gap-6 mb-2 sm:mb-2.5 select-none">
             <button
               onClick={() => handleSelectMode('photo')}
               disabled={isRecording}
-              className={`text-xs font-black uppercase tracking-widest transition-all ${
+              className={`text-[11px] sm:text-xs font-black uppercase tracking-widest transition-all py-1 px-3 rounded-full ${
                 mode === 'photo'
-                  ? 'text-[#FFFC00] scale-110 drop-shadow-[0_0_10px_rgba(255,252,0,0.5)]'
+                  ? 'text-[#FFFC00] scale-105 drop-shadow-[0_0_8px_rgba(255,252,0,0.6)]'
                   : 'text-white/40 hover:text-white/70'
               }`}
             >
@@ -1697,9 +1733,9 @@ export default function CameraPage() {
             <button
               onClick={() => handleSelectMode('video')}
               disabled={isRecording}
-              className={`text-xs font-black uppercase tracking-widest transition-all ${
+              className={`text-[11px] sm:text-xs font-black uppercase tracking-widest transition-all py-1 px-3 rounded-full ${
                 mode === 'video'
-                  ? 'text-[#FFFC00] scale-110 drop-shadow-[0_0_10px_rgba(255,252,0,0.5)]'
+                  ? 'text-[#FFFC00] scale-105 drop-shadow-[0_0_8px_rgba(255,252,0,0.6)]'
                   : 'text-white/40 hover:text-white/70'
               }`}
             >
@@ -1708,7 +1744,7 @@ export default function CameraPage() {
           </div>
 
           {/* Shutter Button Row */}
-          <div className="w-full max-w-sm sm:max-w-md flex items-center justify-around px-2 sm:px-4">
+          <div className="w-full max-w-sm sm:max-w-md flex items-center justify-around px-3 sm:px-6">
             {/* Left: Memories / Gallery Button */}
             <button
               onClick={() => {
