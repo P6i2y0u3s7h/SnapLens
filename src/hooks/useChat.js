@@ -6,6 +6,7 @@ import {
   sendChatMessageInCloud,
   subscribeToChatMessagesInCloud,
   markSnapViewedInCloud,
+  sendSnapToMultipleFriendsInCloud,
   getChatId,
 } from '../services/firebaseService';
 import { useAuth } from '../contexts/AuthContext';
@@ -434,6 +435,63 @@ export function useChat() {
     [friends, isFirebaseConfigured, currentUser]
   );
 
+  // 8b. Send Disappearing Snap to MULTIPLE friends simultaneously
+  const sendSnapToMultipleFriends = useCallback(
+    async (recipientIds, { snapUrl, dataUrl, fileBlob, type = 'photo', caption = '', onProgress = null }) => {
+      if (!recipientIds || recipientIds.length === 0) return { success: false };
+
+      const finalUrl = snapUrl || dataUrl;
+      const nowTime = 'Just now';
+
+      // 1. Optimistic Local State Update for instant feedback
+      const updatedFriends = friends.map((f) => {
+        if (recipientIds.includes(f.id)) {
+          const newSnapMsg = {
+            id: 'm_snap_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+            sender: 'me',
+            type: 'snap',
+            snapUrl: finalUrl,
+            mediaType: type,
+            caption: caption || '',
+            time: nowTime,
+            opened: false,
+            status: 'delivered',
+          };
+
+          return {
+            ...f,
+            streak: (f.streak || 0) + 1,
+            lastInteraction: 'Snap Sent 🔥',
+            lastInteractionTime: nowTime,
+            status: 'delivered',
+            messages: [...(f.messages || []), newSnapMsg],
+          };
+        }
+        return f;
+      });
+
+      persistFriends(updatedFriends);
+
+      // 2. Dispatch to Firebase with single storage upload & individual Firestore docs
+      let cloudResult = { success: true };
+      if (isFirebaseConfigured && currentUser) {
+        cloudResult = await sendSnapToMultipleFriendsInCloud({
+          sender: currentUser,
+          recipientIds,
+          mediaUrl: snapUrl,
+          dataUrl,
+          fileBlob,
+          mediaType: type,
+          caption,
+          onProgress,
+        });
+      }
+
+      return cloudResult;
+    },
+    [friends, isFirebaseConfigured, currentUser]
+  );
+
   // 9. Mark Snap Message as Opened (Disappearing Media)
   const openSnapMessage = useCallback(
     async (friendId, messageId) => {
@@ -516,6 +574,7 @@ export function useChat() {
     setActiveFriendId,
     sendMessage,
     sendSnapToFriend,
+    sendSnapToMultipleFriends,
     openSnapMessage,
     addFriend,
     searchUsers,

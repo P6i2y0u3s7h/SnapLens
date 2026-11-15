@@ -655,3 +655,263 @@ export function subscribeToChatMessagesInCloud(chatId, onUpdate) {
     return () => {};
   }
 }
+
+/**
+ * Uploads a photo or video once to Firebase Storage for sharing across multiple recipients
+ */
+export async function uploadSnapMediaOnce({
+  fileBlob,
+  dataUrl,
+  type = 'photo',
+  userId = null,
+  onProgress = null,
+}) {
+  const effectiveUserId = userId || auth?.currentUser?.uid || 'user_' + Date.now();
+
+  if (!isFirebaseConfigured || !storage) {
+    if (onProgress) {
+      onProgress(50);
+      setTimeout(() => onProgress(100), 200);
+    }
+    return {
+      mediaUrl: dataUrl || (fileBlob ? URL.createObjectURL(fileBlob) : ''),
+      storagePath: null,
+      isLocal: true,
+    };
+  }
+
+  try {
+    let blobToUpload = fileBlob;
+    if (!blobToUpload && dataUrl) {
+      if (dataUrl.startsWith('http')) {
+        return { mediaUrl: dataUrl, storagePath: null, isLocal: false };
+      }
+      const res = await fetch(dataUrl);
+      blobToUpload = await res.blob();
+    }
+
+    if (!blobToUpload) {
+      throw new Error('No media blob available for upload');
+    }
+
+    const ext = type === 'video' ? 'webm' : 'jpg';
+    const filename = `${Date.now()}_shared_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+    const storagePath = `snaps/${effectiveUserId}/${filename}`;
+    const storageRef = ref(storage, storagePath);
+
+    const uploadTask = uploadBytesResumable(storageRef, blobToUpload, {
+      contentType: type === 'video' ? 'video/webm' : 'image/jpeg',
+      customMetadata: {
+        userId: effectiveUserId,
+        type,
+        sharedSnap: 'true',
+      },
+    });
+
+    const downloadURL = await new Promise((resolve, reject) => {
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          if (snapshot.totalBytes > 0 && onProgress) {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            onProgress(Math.round(progress));
+          }
+        },
+        (error) => {
+          console.error('Firebase single snap upload failed:', error);
+          reject(error);
+        },
+        async () => {
+          try {
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve(url);
+          } catch (urlErr) {
+            reject(urlErr);
+          }
+        }
+      );
+    });
+
+    return { mediaUrl: downloadURL, storagePath, isLocal: false };
+  } catch (err) {
+    console.warn('Upload snap media error, using local fallback:', err);
+    return {
+      mediaUrl: dataUrl || (fileBlob ? URL.createObjectURL(fileBlob) : ''),
+      storagePath: null,
+      isLocal: true,
+      error: err.message,
+    };
+  }
+}
+
+/**
+ * Sends the SAME photo/video to multiple friends simultaneously:
+ * 1. Uploads media once to Firebase Storage
+ * 2. Creates individual recipient records in Firestore 'snaps' collection
+ * 3. Adds snap message into each 1-on-1 chat in Firestore
+ * 4. Updates sender and recipient interaction statuses
+ */
+export async function sendSnapToMultipleFriendsInCloud({
+  sender,
+  recipientIds = [],
+  fileBlob = null,
+  dataUrl = null,
+  mediaUrl = null,
+  mediaType = 'photo',
+  caption = '',
+  onProgress = null,
+}) {
+  if (!recipientIds || recipientIds.length === 0) {
+    return { success: false, error: 'No recipients selected' };
+  }
+
+  const senderId = sender?.uid || sender?.id || 'demo_user';
+  const senderName = sender?.displayName || sender?.name || 'SnapLens User';
+  const senderAvatar = sender?.photoURL || sender?.avatar || '';
+  const senderHandle = sender?.handle || (sender?.email ? sender.email.split('@')[0] : 'user');
+
+  try {
+    // Step 1: Upload media once if not already a cloud URL
+    let finalMediaUrl = mediaUrl;
+    let storagePath = null;
+
+    if (!finalMediaUrl && (fileBlob || dataUrl)) {
+      const uploadResult = await uploadSnapMediaOnce({
+        fileBlob,
+        dataUrl,
+        type: mediaType,
+        userId: senderId,
+        onProgress,
+      });
+      finalMediaUrl = uploadResult.mediaUrl;
+      storagePath = uploadResult.storagePath;
+    }
+
+    if (onProgress) {
+      onProgress(100);
+    }
+
+    const now = Date.now();
+    const expiresAtMs = now + 24 * 60 * 60 * 1000; // 24-hour expiration
+    const expiresAt = new Date(expiresAtMs).toISOString();
+
+    // Step 2: If Firestore is connected, batch/parallel create recipient records
+    const snapRecords = [];
+
+    if (isFirebaseConfigured && db) {
+      const writePromises = recipientIds.map(async (recipientId) => {
+        try {
+          // A. Create dedicated snap record in 'snaps' collection
+          const snapData = {
+            senderId,
+            senderName,
+            senderAvatar,
+            senderHandle,
+            recipientId,
+            mediaUrl: finalMediaUrl,
+            mediaType,
+            caption: caption || '',
+            storagePath,
+            status: 'delivered', // 'sent' | 'delivered' | 'opened'
+            createdAt: serverTimestamp(),
+            createdAtMs: now,
+            expiresAt,
+            expiresAtMs,
+            viewedAt: null,
+          };
+
+          const snapDocRef = await addDoc(collection(db, 'snaps'), snapData);
+
+          // B. Add message in 1-on-1 chat
+          const chatId = getChatId(senderId, recipientId);
+          const chatMsgData = {
+            snapId: snapDocRef.id,
+            senderId,
+            senderName,
+            senderAvatar,
+            text: caption || '',
+            mediaUrl: finalMediaUrl,
+            mediaType,
+            isSnap: true,
+            caption: caption || '',
+            isViewed: false,
+            status: 'delivered',
+            viewedAt: null,
+            createdAt: serverTimestamp(),
+            createdAtMs: now,
+          };
+
+          await addDoc(collection(db, 'chats', chatId, 'messages'), chatMsgData);
+
+          // C. Update chat metadata
+          await setDoc(
+            doc(db, 'chats', chatId),
+            {
+              lastMessage: 'Sent a Snap 🔥',
+              lastMessageTime: serverTimestamp(),
+              lastMessageTimeMs: now,
+            },
+            { merge: true }
+          );
+
+          snapRecords.push({
+            snapId: snapDocRef.id,
+            recipientId,
+            mediaUrl: finalMediaUrl,
+          });
+        } catch (subErr) {
+          console.warn(`Failed cloud dispatch to friend ${recipientId}:`, subErr);
+        }
+      });
+
+      await Promise.all(writePromises);
+    }
+
+    return {
+      success: true,
+      mediaUrl: finalMediaUrl,
+      recipientCount: recipientIds.length,
+      snapRecords,
+    };
+  } catch (error) {
+    console.error('sendSnapToMultipleFriendsInCloud failed:', error);
+    return {
+      success: false,
+      error: error.message,
+      mediaUrl: mediaUrl || dataUrl,
+    };
+  }
+}
+
+/**
+ * Fetches all unread/received snaps for a user from Firestore
+ */
+export async function fetchReceivedSnapsFromCloud(userId) {
+  if (!isFirebaseConfigured || !db || !userId) return [];
+
+  try {
+    const snapsRef = collection(db, 'snaps');
+    const q = query(
+      snapsRef,
+      where('recipientId', '==', userId),
+      where('status', 'in', ['delivered', 'sent']),
+      orderBy('createdAtMs', 'desc'),
+      limit(50)
+    );
+
+    const snapshot = await getDocs(q);
+    const snaps = [];
+    snapshot.forEach((d) => {
+      snaps.push({
+        id: d.id,
+        snapId: d.id,
+        ...d.data(),
+      });
+    });
+
+    return snaps;
+  } catch (err) {
+    console.warn('Failed to fetch received snaps:', err);
+    return [];
+  }
+}

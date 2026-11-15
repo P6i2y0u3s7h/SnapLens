@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -197,6 +197,22 @@ export default function ChatPage() {
     return f.name.toLowerCase().includes(q) || f.handle.toLowerCase().includes(q);
   });
 
+  // Unread received snaps across all friends
+  const receivedSnaps = useMemo(() => {
+    const list = [];
+    friends.forEach((friend) => {
+      (friend.messages || []).forEach((msg) => {
+        if (msg.sender === 'them' && msg.type === 'snap' && !msg.opened && msg.snapUrl) {
+          list.push({
+            friend,
+            message: msg,
+          });
+        }
+      });
+    });
+    return list;
+  }, [friends]);
+
   return (
     <div className="min-h-screen bg-[#0A0A0F] text-white flex flex-col pb-20 sm:pb-24">
       <Header />
@@ -307,6 +323,45 @@ export default function ChatPage() {
             {/* Tab 1: Friends Scroll List */}
             {activeTab === 'friends' && (
               <div className="flex-1 overflow-y-auto no-scrollbar divide-y divide-white/5">
+                {/* ── RECEIVED SNAPS TRAY (Instant 1-Tap Viewing) ── */}
+                {receivedSnaps.length > 0 && !searchQuery.trim() && (
+                  <div className="p-3 bg-gradient-to-r from-red-500/15 via-pink-500/10 to-amber-500/10 border-b border-red-500/25">
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-red-400 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                        <span>Received Snaps ({receivedSnaps.length})</span>
+                      </span>
+                      <span className="text-[10px] text-white/50 font-medium">Tap to view</span>
+                    </div>
+
+                    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar touch-scroll-x py-1 px-1">
+                      {receivedSnaps.map(({ friend, message }) => (
+                        <div
+                          key={message.id}
+                          onClick={() => handleOpenSnap(friend.id, message)}
+                          className="flex-shrink-0 flex flex-col items-center gap-1 cursor-pointer group"
+                        >
+                          <div className="relative p-0.5 rounded-full bg-gradient-to-tr from-red-500 via-pink-500 to-[#FFFC00] shadow-lg shadow-red-500/20 group-hover:scale-105 active:scale-95 transition-transform">
+                            <img
+                              src={friend.avatar}
+                              alt={friend.name}
+                              className="w-12 h-12 rounded-full object-cover border-2 border-[#0E0E18]"
+                            />
+                            <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center text-[10px] shadow-md border border-[#0E0E18]">
+                              <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
+                            </div>
+                          </div>
+                          <span className="text-[11px] font-bold text-white max-w-[68px] truncate text-center">
+                            {friend.name.split(' ')[0]}
+                          </span>
+                          <span className="text-[9px] text-white/40 -mt-1 font-mono">
+                            {message.time || 'New'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {filteredFriends.length === 0 ? (
                   <div className="p-8 text-center text-xs text-white/40">
                     No friends found matching "{searchQuery}"
@@ -732,52 +787,94 @@ export default function ChatPage() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed inset-0 z-50 bg-black flex items-center justify-center p-3 select-none"
+            className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex items-center justify-center p-0 sm:p-4 select-none"
           >
-            <div className="relative max-w-md w-full h-full max-h-[90vh] rounded-3xl overflow-hidden border border-white/20 shadow-2xl flex flex-col justify-between bg-[#0E0E18]">
-              {/* Countdown Progress Bar at Top */}
-              <div className="absolute top-3 left-3 right-3 z-30 flex items-center gap-2">
-                <div className="flex-1 h-1.5 rounded-full bg-white/25 overflow-hidden">
-                  <div
-                    className="h-full bg-[#FFFC00] transition-all duration-75"
-                    style={{ width: `${snapCountdown}%` }}
-                  />
-                </div>
-                <button
+            {(() => {
+              const snapSender = friends.find((f) => f.id === viewingSnap.friendId);
+              return (
+                <div
+                  className="relative w-full h-full sm:max-w-md sm:max-h-[92vh] sm:rounded-3xl overflow-hidden border-0 sm:border sm:border-white/20 shadow-2xl flex flex-col justify-between bg-black cursor-pointer"
                   onClick={handleCloseSnap}
-                  className="w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white"
                 >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+                  {/* Countdown Progress Bar at Top */}
+                  <div className="absolute top-3 left-3 right-3 z-30 flex items-center gap-2">
+                    <div className="flex-1 h-1.5 rounded-full bg-white/25 overflow-hidden">
+                      <div
+                        className="h-full bg-[#FFFC00] transition-all duration-75 shadow-sm shadow-[#FFFC00]"
+                        style={{ width: `${snapCountdown}%` }}
+                      />
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCloseSnap();
+                      }}
+                      className="w-7 h-7 rounded-full bg-black/70 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+                      title="Close Snap"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
 
-              {/* Media Container */}
-              <div className="relative w-full h-full flex items-center justify-center bg-black">
-                {viewingSnap.message.mediaType === 'video' ? (
-                  <video
-                    src={viewingSnap.message.snapUrl}
-                    autoPlay
-                    playsInline
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <img
-                    src={viewingSnap.message.snapUrl}
-                    alt="Snap"
-                    className="w-full h-full object-cover"
-                  />
-                )}
-              </div>
+                  {/* Sender Profile Header Overlay */}
+                  <div className="absolute top-8 left-3 right-3 z-30 flex items-center justify-between pointer-events-none">
+                    <div className="flex items-center gap-2.5 bg-black/65 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+                      <img
+                        src={snapSender?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'}
+                        alt={snapSender?.name || 'Sender'}
+                        className="w-8 h-8 rounded-full object-cover border-2 border-[#FFFC00]"
+                      />
+                      <div>
+                        <h4 className="text-xs font-bold text-white leading-tight">
+                          {snapSender?.name || 'Snap Friend'}
+                        </h4>
+                        <span className="text-[10px] text-white/60 font-mono">
+                          @{snapSender?.handle || 'user'} • {viewingSnap.message.time || 'Just now'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[10px] font-mono font-bold text-[#FFFC00] shadow-lg">
+                      {viewingSnap.message.mediaType === 'video' ? 'VIDEO SNAP' : 'PHOTO SNAP'}
+                    </div>
+                  </div>
+
+                  {/* Media Container */}
+                  <div className="relative w-full h-full flex items-center justify-center bg-black">
+                    {viewingSnap.message.mediaType === 'video' ? (
+                      <video
+                        src={viewingSnap.message.snapUrl}
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <img
+                        src={viewingSnap.message.snapUrl}
+                        alt="Snap"
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                  </div>
+
+                  {/* Tap to Close Hint */}
+                  <div className="absolute top-20 right-3 z-20 pointer-events-none">
+                    <span className="text-[10px] font-bold text-white/50 bg-black/50 px-2 py-0.5 rounded-full backdrop-blur-xs">
+                      Tap anywhere to close
+                    </span>
+                  </div>
 
               {/* Caption Overlay */}
               {viewingSnap.message.caption && (
-                <div className="absolute bottom-6 left-4 right-4 z-20 text-center">
+                <div className="absolute bottom-6 left-4 right-4 z-20 text-center pointer-events-none">
                   <span className="inline-block px-4 py-2 rounded-2xl bg-black/75 backdrop-blur-md border border-white/15 text-sm font-bold text-white">
                     {viewingSnap.message.caption}
                   </span>
                 </div>
               )}
             </div>
+              );
+            })()}
           </motion.div>
         )}
       </AnimatePresence>

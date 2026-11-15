@@ -37,6 +37,7 @@ import { useStories } from '../hooks/useStories';
 import { useChat } from '../hooks/useChat';
 import { useAuth } from '../contexts/AuthContext';
 import { uploadMediaToCloud } from '../services/firebaseService';
+import SendToModal from '../components/SendToModal';
 import toast from 'react-hot-toast';
 
 // Color Palette for Brush & Text
@@ -143,6 +144,7 @@ export default function EditorPage() {
 
   // Social & Export Modals
   const [showSendFriendsModal, setShowSendFriendsModal] = useState(false);
+  const [sendMediaData, setSendMediaData] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
 
   // 1. Initialize Base Canvas with Captured Photo
@@ -646,21 +648,16 @@ export default function EditorPage() {
     navigate('/stories');
   };
 
-  // 13. Send Snap to Friend
-  const handleSendToFriend = (friendId) => {
+  // 13. Open Multi-Friend Send To Modal
+  const handleOpenSendModal = () => {
     const finalUrl = isVideo ? videoUrl : generateCompositeDataUrl();
     const caption = overlays.find((o) => o.type === 'text')?.content || '';
-
-    sendSnapToFriend(friendId, {
-      snapUrl: finalUrl,
+    setSendMediaData({
+      url: finalUrl,
       type: isVideo ? 'video' : 'photo',
       caption,
     });
-
-    const friend = friends.find((f) => f.id === friendId);
-    toast.success(`Snap sent to ${friend ? friend.name : 'friend'}!`, { icon: '🚀' });
-    setShowSendFriendsModal(false);
-    navigate('/chat', { state: { activeFriendId: friendId } });
+    setShowSendFriendsModal(true);
   };
 
   // Selected Overlay item helper
@@ -710,9 +707,9 @@ export default function EditorPage() {
         {/* Right: Send Snap action */}
         <div className="flex items-center flex-shrink-0">
           <button
-            onClick={() => setShowSendFriendsModal(true)}
+            onClick={handleOpenSendModal}
             className="btn-snap h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs font-bold text-black flex items-center gap-1.5 shadow-md shadow-[#FFFC00]/20 active:scale-95 transition-all"
-            title="Send to Friend"
+            title="Send Snap to Friends"
           >
             <Send className="w-3.5 h-3.5 text-black flex-shrink-0" />
             <span>Send</span>
@@ -1450,59 +1447,21 @@ export default function EditorPage() {
           )}
         </AnimatePresence>
 
-        {/* ── SEND TO FRIENDS MODAL ── */}
-        <AnimatePresence>
-          {showSendFriendsModal && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-              onClick={() => setShowSendFriendsModal(false)}
-            >
-              <div
-                className="glass-panel rounded-3xl p-5 max-w-sm w-full border border-white/20 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Send className="w-4 h-4 text-[#FFFC00]" />
-                    <span>Send Snap to Friend</span>
-                  </h3>
-                  <button onClick={() => setShowSendFriendsModal(false)}>
-                    <X className="w-4 h-4 text-white/60 hover:text-white" />
-                  </button>
-                </div>
-
-                <div className="max-h-60 overflow-y-auto no-scrollbar space-y-2 mb-4">
-                  {friends.map((friend) => (
-                    <div
-                      key={friend.id}
-                      onClick={() => handleSendToFriend(friend.id)}
-                      className="p-2.5 rounded-2xl bg-white/5 hover:bg-[#FFFC00]/15 hover:border-[#FFFC00]/40 border border-transparent cursor-pointer flex items-center justify-between transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={friend.avatar}
-                          alt={friend.name}
-                          className="w-9 h-9 rounded-full object-cover"
-                        />
-                        <div>
-                          <h4 className="text-xs font-bold text-white">{friend.name}</h4>
-                          <span className="text-[10px] text-white/40">@{friend.handle}</span>
-                        </div>
-                      </div>
-
-                      <div className="w-7 h-7 rounded-full snap-gradient flex items-center justify-center text-black shadow-md">
-                        <Send className="w-3 h-3 ml-0.5" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* ── MULTI-FRIEND SEND TO MODAL ── */}
+        <SendToModal
+          isOpen={showSendFriendsModal}
+          onClose={() => setShowSendFriendsModal(false)}
+          mediaUrl={sendMediaData?.url || (isVideo ? videoUrl : null)}
+          mediaType={sendMediaData?.type || (isVideo ? 'video' : 'photo')}
+          caption={sendMediaData?.caption || overlays.find((o) => o.type === 'text')?.content || ''}
+          onSent={({ primaryFriendId }) => {
+            if (primaryFriendId) {
+              navigate('/chat', { state: { activeFriendId: primaryFriendId } });
+            } else {
+              navigate('/chat');
+            }
+          }}
+        />
       </main>
 
       {/* ── BOTTOM FILTER CAROUSEL & ACTIONS BAR ── */}

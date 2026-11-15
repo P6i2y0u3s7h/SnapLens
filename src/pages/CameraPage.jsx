@@ -38,6 +38,7 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
+  Send,
 } from 'lucide-react';
 import { useCamera, FILTERS } from '../hooks/useCamera';
 import { useFaceTracking } from '../hooks/useFaceTracking';
@@ -46,6 +47,7 @@ import { useChat } from '../hooks/useChat';
 import { useStories } from '../hooks/useStories';
 import { useAuth } from '../contexts/AuthContext';
 import { uploadMediaToCloud } from '../services/firebaseService';
+import SendToModal from '../components/SendToModal';
 import {
   AR_FILTERS,
   FILTER_CATEGORIES,
@@ -119,6 +121,8 @@ export default function CameraPage() {
   const [videoFilter, setVideoFilter] = useState(FILTERS[0]);
   const [videoCaption, setVideoCaption] = useState('');
   const [showVideoCaptionInput, setShowVideoCaptionInput] = useState(false);
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [sendModalMedia, setSendModalMedia] = useState(null);
   const previewVideoRef = useRef(null);
 
   // High-Performance Face Tracking & AR Face Lenses (Zero React re-renders for coordinate stream)
@@ -1319,10 +1323,27 @@ export default function CameraPage() {
                 {/* Save Photo */}
                 <button
                   onClick={handleSavePhoto}
-                  className="btn-snap px-6 py-3 rounded-full text-xs sm:text-sm font-bold text-black flex items-center gap-2 shadow-lg shadow-[#FFFC00]/25 active:scale-95 transition-transform"
+                  className="glass-pill px-4 sm:px-5 py-3 rounded-full text-xs sm:text-sm font-bold text-white flex items-center gap-2 hover:bg-white/15 active:scale-95 transition-transform"
                 >
-                  <Download className="w-4 h-4" />
-                  <span>Save Snap</span>
+                  <Download className="w-4 h-4 text-white/80" />
+                  <span>Save</span>
+                </button>
+
+                {/* Send Snap to Friends */}
+                <button
+                  onClick={() => {
+                    setSendModalMedia({
+                      url: capturedPhotoUrl,
+                      type: 'photo',
+                      caption: 'Live Camera Snap',
+                    });
+                    setShowSendModal(true);
+                  }}
+                  className="btn-snap px-5 sm:px-6 py-3 rounded-full text-xs sm:text-sm font-bold text-black flex items-center gap-1.5 shadow-lg shadow-[#FFFC00]/25 hover:scale-105 active:scale-95 transition-transform"
+                  title="Send to Friends"
+                >
+                  <Send className="w-4 h-4 ml-0.5" />
+                  <span>Send To</span>
                 </button>
               </div>
             </div>
@@ -1513,10 +1534,28 @@ export default function CameraPage() {
                 {/* Save & Upload Video */}
                 <button
                   onClick={handleSaveVideo}
-                  className="btn-snap px-5 sm:px-6 py-2.5 rounded-full text-xs sm:text-sm font-bold text-black flex items-center gap-2 shadow-lg shadow-[#FFFC00]/25 active:scale-95 transition-transform"
+                  className="glass-pill px-4 sm:px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold text-white flex items-center gap-1.5 hover:bg-white/15 active:scale-95 transition-transform"
                 >
-                  <Download className="w-4 h-4" />
-                  <span>Save Video</span>
+                  <Download className="w-4 h-4 text-white/80" />
+                  <span>Save</span>
+                </button>
+
+                {/* Send Video Snap to Friends */}
+                <button
+                  onClick={() => {
+                    setSendModalMedia({
+                      url: recordedVideoData?.url,
+                      fileBlob: recordedVideoData?.blob,
+                      type: 'video',
+                      caption: videoCaption || 'Live Video Snap',
+                    });
+                    setShowSendModal(true);
+                  }}
+                  className="btn-snap px-4 sm:px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold text-black flex items-center gap-1.5 shadow-lg shadow-[#FFFC00]/25 hover:scale-105 active:scale-95 transition-transform"
+                  title="Send to Friends"
+                >
+                  <Send className="w-4 h-4 ml-0.5" />
+                  <span>Send To</span>
                 </button>
               </div>
             </div>
@@ -1791,6 +1830,24 @@ export default function CameraPage() {
           </div>
         </footer>
       )}
+
+      {/* ── MULTI-FRIEND SEND TO MODAL ── */}
+      <SendToModal
+        isOpen={showSendModal}
+        onClose={() => setShowSendModal(false)}
+        mediaUrl={sendModalMedia?.url}
+        fileBlob={sendModalMedia?.fileBlob}
+        mediaType={sendModalMedia?.type || 'photo'}
+        caption={sendModalMedia?.caption || ''}
+        onSent={({ primaryFriendId }) => {
+          stopCamera();
+          if (primaryFriendId) {
+            navigate('/chat', { state: { activeFriendId: primaryFriendId } });
+          } else {
+            navigate('/chat');
+          }
+        }}
+      />
     </div>
   );
 }
