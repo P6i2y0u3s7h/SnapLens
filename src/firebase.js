@@ -9,8 +9,9 @@ const firebaseConfig = {
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "snaplens-app.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "snaplens-app",
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "snaplens-app.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789012",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123456789012:web:abcdef123456789"
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "965162169493",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:965162169493:web:4403d1184e561ec8bd579c",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-0C7K8W7DX3"
 };
 
 let app = null;
