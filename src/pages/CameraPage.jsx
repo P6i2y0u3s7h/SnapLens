@@ -111,6 +111,16 @@ export default function CameraPage() {
   const { addSnapToMyStory } = useStories();
   const { currentUser } = useAuth();
 
+  // In-camera capture preview states
+  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState(null);
+  const [recordedVideoData, setRecordedVideoData] = useState(null);
+  const [isPreviewMuted, setIsPreviewMuted] = useState(false);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(true);
+  const [videoFilter, setVideoFilter] = useState(FILTERS[0]);
+  const [videoCaption, setVideoCaption] = useState('');
+  const [showVideoCaptionInput, setShowVideoCaptionInput] = useState(false);
+  const previewVideoRef = useRef(null);
+
   // High-Performance Face Tracking & AR Face Lenses (Zero React re-renders for coordinate stream)
   const {
     facesRef,
@@ -124,16 +134,6 @@ export default function CameraPage() {
   const arCanvasRef = useRef(null);
   const recordCanvasRef = useRef(null);
   const isRecordingCompositeRef = useRef(false);
-
-  // In-camera capture preview states
-  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState(null);
-  const [recordedVideoData, setRecordedVideoData] = useState(null);
-  const [isPreviewMuted, setIsPreviewMuted] = useState(false);
-  const [isPreviewPlaying, setIsPreviewPlaying] = useState(true);
-  const [videoFilter, setVideoFilter] = useState(FILTERS[0]);
-  const [videoCaption, setVideoCaption] = useState('');
-  const [showVideoCaptionInput, setShowVideoCaptionInput] = useState(false);
-  const previewVideoRef = useRef(null);
 
   // Controls & UI drawers
   const [lensMode, setLensMode] = useState('ar_lenses'); // 'ar_lenses' | 'filters'
