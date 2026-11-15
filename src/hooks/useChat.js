@@ -6,6 +6,8 @@ import {
   sendChatMessageInCloud,
   subscribeToChatMessagesInCloud,
   markSnapViewedInCloud,
+  replaySnapInCloud,
+  markSnapSavedInCloud,
   sendSnapToMultipleFriendsInCloud,
   getChatId,
 } from '../services/firebaseService';
@@ -34,10 +36,15 @@ const INITIAL_FRIENDS = [
         sender: 'them',
         type: 'snap',
         snapUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
+        originalSnapUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
         mediaType: 'photo',
         caption: 'Look at today’s waves! 🌊',
         time: '5m ago',
         opened: false,
+        replayAvailable: false,
+        replayUsed: false,
+        replayCount: 0,
+        savedToMemories: false,
       },
     ],
   },
@@ -493,19 +500,44 @@ export function useChat() {
   );
 
   // 9. Mark Snap Message as Opened (Disappearing Media)
+  // If isReplay is false: snap is viewed, 1 replay becomes available, media URL preserved for replay & saving
+  // If isReplay is true: 1-time replay is exhausted -> snap disappears permanently
   const openSnapMessage = useCallback(
-    async (friendId, messageId) => {
+    async (friendId, messageId, isReplay = false) => {
+      let targetSnapId = null;
+
       const updated = friends.map((f) => {
         if (f.id === friendId) {
           const updatedMsgs = (f.messages || []).map((m) => {
             if (m.id === messageId) {
-              return {
-                ...m,
-                opened: true,
-                viewedAt: 'Just now',
-                // Clear media from memory once viewed so it disappears permanently
-                snapUrl: null,
-              };
+              targetSnapId = m.snapId;
+              const originalUrl = m.originalSnapUrl || m.snapUrl || m.mediaUrl;
+
+              if (isReplay) {
+                return {
+                  ...m,
+                  opened: true,
+                  status: 'opened',
+                  viewedAt: 'Just now',
+                  replayAvailable: false,
+                  replayUsed: true,
+                  replayCount: 1,
+                  // Replay finished: clear media URL permanently so it disappears
+                  snapUrl: null,
+                };
+              } else {
+                return {
+                  ...m,
+                  opened: true,
+                  status: 'opened',
+                  viewedAt: 'Just now',
+                  replayAvailable: true,
+                  replayUsed: false,
+                  replayCount: 0,
+                  originalSnapUrl: originalUrl,
+                  snapUrl: originalUrl,
+                };
+              }
             }
             return m;
           });
@@ -514,7 +546,7 @@ export function useChat() {
             ...f,
             unreadCount: 0,
             status: 'opened',
-            lastInteraction: 'Opened Snap',
+            lastInteraction: isReplay ? 'Replayed Snap' : 'Opened Snap',
             lastInteractionTime: 'Just now',
             messages: updatedMsgs,
           };
@@ -524,10 +556,125 @@ export function useChat() {
 
       persistFriends(updated);
 
-      // Mark viewed in Firestore
+      // Sync viewed status to Firestore
       if (isFirebaseConfigured && currentUser) {
         const chatId = getChatId(currentUser.uid, friendId);
-        await markSnapViewedInCloud(chatId, messageId);
+        if (isReplay) {
+          await replaySnapInCloud(chatId, messageId, targetSnapId, currentUser.uid);
+        } else {
+          await markSnapViewedInCloud(chatId, messageId, targetSnapId);
+        }
+      }
+    },
+    [friends, isFirebaseConfigured, currentUser]
+  );
+
+  // 9b. Replay Snap Message (strictly once per recipient)
+  const replaySnapMessage = useCallback(
+    async (friendId, messageId) => {
+      let targetSnap = null;
+      let alreadyUsed = false;
+
+      friends.forEach((f) => {
+        if (f.id === friendId) {
+          (f.messages || []).forEach((m) => {
+            if (m.id === messageId) {
+              targetSnap = m;
+              if (m.replayUsed || (m.replayCount && m.replayCount >= 1)) {
+                alreadyUsed = true;
+              }
+            }
+          });
+        }
+      });
+
+      if (alreadyUsed || !targetSnap) {
+        return { success: false, error: 'Replay already used.' };
+      }
+
+      const activeUrl = targetSnap.originalSnapUrl || targetSnap.snapUrl || targetSnap.mediaUrl;
+      if (!activeUrl) {
+        return { success: false, error: 'Media is no longer available.' };
+      }
+
+      const updated = friends.map((f) => {
+        if (f.id === friendId) {
+          const updatedMsgs = (f.messages || []).map((m) => {
+            if (m.id === messageId) {
+              return {
+                ...m,
+                replayCount: 1,
+                replayUsed: true,
+                replayAvailable: false,
+                replayedAt: 'Just now',
+                snapUrl: activeUrl,
+              };
+            }
+            return m;
+          });
+
+          return {
+            ...f,
+            lastInteraction: 'Replayed Snap',
+            lastInteractionTime: 'Just now',
+            messages: updatedMsgs,
+          };
+        }
+        return f;
+      });
+
+      persistFriends(updated);
+
+      if (isFirebaseConfigured && currentUser) {
+        const chatId = getChatId(currentUser.uid, friendId);
+        await replaySnapInCloud(chatId, messageId, targetSnap.snapId, currentUser.uid);
+      }
+
+      return {
+        success: true,
+        message: {
+          ...targetSnap,
+          replayCount: 1,
+          replayUsed: true,
+          replayAvailable: false,
+          snapUrl: activeUrl,
+        },
+      };
+    },
+    [friends, isFirebaseConfigured, currentUser]
+  );
+
+  // 9c. Mark Snap as Saved to Memories Locally & in Cloud
+  const markSnapSavedLocally = useCallback(
+    async (friendId, messageId) => {
+      let targetSnapId = null;
+      const updated = friends.map((f) => {
+        if (f.id === friendId) {
+          const updatedMsgs = (f.messages || []).map((m) => {
+            if (m.id === messageId) {
+              targetSnapId = m.snapId;
+              return {
+                ...m,
+                savedToMemories: true,
+                savedAt: 'Just now',
+              };
+            }
+            return m;
+          });
+
+          return {
+            ...f,
+            messages: updatedMsgs,
+          };
+        }
+        return f;
+      });
+
+      persistFriends(updated);
+
+      if (isFirebaseConfigured && currentUser) {
+        const chatId = getChatId(currentUser.uid, friendId);
+        await markSnapSavedInCloud(chatId, messageId, targetSnapId, currentUser.uid);
       }
     },
     [friends, isFirebaseConfigured, currentUser]
@@ -576,6 +723,8 @@ export function useChat() {
     sendSnapToFriend,
     sendSnapToMultipleFriends,
     openSnapMessage,
+    replaySnapMessage,
+    markSnapSavedLocally,
     addFriend,
     searchUsers,
     searchResults,

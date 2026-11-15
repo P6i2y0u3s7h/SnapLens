@@ -5,6 +5,7 @@ import {
   addDoc,
   setDoc,
   updateDoc,
+  getDoc,
   getDocs,
   deleteDoc,
   doc,
@@ -603,19 +604,123 @@ export async function sendChatMessageInCloud({
 
 /**
  * Marks a disappearing Snap as viewed in Firestore
+ * Sets status to 'opened', records openedAt, and makes 1 replay available
  */
-export async function markSnapViewedInCloud(chatId, messageId) {
-  if (!isFirebaseConfigured || !db || !chatId || !messageId) return;
+export async function markSnapViewedInCloud(chatId, messageId, snapId = null) {
+  if (!isFirebaseConfigured || !db) return;
 
   try {
-    const msgRef = doc(db, 'chats', chatId, 'messages', messageId);
-    await updateDoc(msgRef, {
-      isViewed: true,
-      viewedAt: serverTimestamp(),
-      viewedAtMs: Date.now(),
-    });
+    const now = Date.now();
+    if (chatId && messageId) {
+      const msgRef = doc(db, 'chats', chatId, 'messages', messageId);
+      await updateDoc(msgRef, {
+        isViewed: true,
+        status: 'opened',
+        openedAt: serverTimestamp(),
+        openedAtMs: now,
+        viewedAt: serverTimestamp(),
+        viewedAtMs: now,
+        replayAvailable: true,
+        replayUsed: false,
+        replayCount: 0,
+      }).catch(() => {});
+    }
+
+    if (snapId) {
+      const snapRef = doc(db, 'snaps', snapId);
+      await updateDoc(snapRef, {
+        status: 'opened',
+        openedAt: serverTimestamp(),
+        openedAtMs: now,
+        viewedAt: serverTimestamp(),
+        viewedAtMs: now,
+        replayAvailable: true,
+        replayUsed: false,
+        replayCount: 0,
+      }).catch(() => {});
+    }
   } catch (err) {
     console.warn('Mark snap viewed error:', err);
+  }
+}
+
+/**
+ * Marks a Snap as replayed in Firestore with 1-time server restriction
+ */
+export async function replaySnapInCloud(chatId, messageId, snapId = null, recipientId = null) {
+  if (!isFirebaseConfigured || !db) return { success: true };
+
+  try {
+    const now = Date.now();
+
+    // Verify server-side snap record if available
+    if (snapId) {
+      const snapRef = doc(db, 'snaps', snapId);
+      const snapSnap = await getDoc(snapRef);
+      if (snapSnap.exists()) {
+        const snapData = snapSnap.data();
+        if (snapData.replayUsed || (snapData.replayCount && snapData.replayCount >= 1)) {
+          return { success: false, error: 'Replay already used for this snap.' };
+        }
+      }
+
+      await updateDoc(snapRef, {
+        replayAvailable: false,
+        replayUsed: true,
+        replayCount: 1,
+        replayedAt: serverTimestamp(),
+        replayedAtMs: now,
+      }).catch(() => {});
+    }
+
+    if (chatId && messageId) {
+      const msgRef = doc(db, 'chats', chatId, 'messages', messageId);
+      await updateDoc(msgRef, {
+        replayAvailable: false,
+        replayUsed: true,
+        replayCount: 1,
+        replayedAt: serverTimestamp(),
+        replayedAtMs: now,
+      }).catch(() => {});
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.warn('Replay snap in cloud error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Marks a Snap as saved to Memories in Firestore
+ */
+export async function markSnapSavedInCloud(chatId, messageId, snapId = null, userId = null) {
+  if (!isFirebaseConfigured || !db) return { success: true };
+
+  try {
+    const now = Date.now();
+    if (chatId && messageId) {
+      const msgRef = doc(db, 'chats', chatId, 'messages', messageId);
+      await updateDoc(msgRef, {
+        savedToMemories: true,
+        savedAt: serverTimestamp(),
+        savedAtMs: now,
+      }).catch(() => {});
+    }
+
+    if (snapId) {
+      const snapRef = doc(db, 'snaps', snapId);
+      await updateDoc(snapRef, {
+        savedToMemories: true,
+        savedAt: serverTimestamp(),
+        savedAtMs: now,
+      }).catch(() => {});
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.warn('Mark snap saved in cloud error:', err);
+    return { success: false, error: err.message };
   }
 }
 
@@ -819,6 +924,11 @@ export async function sendSnapToMultipleFriendsInCloud({
             expiresAt,
             expiresAtMs,
             viewedAt: null,
+            openedAt: null,
+            replayAvailable: false,
+            replayUsed: false,
+            replayCount: 0,
+            savedToMemories: false,
           };
 
           const snapDocRef = await addDoc(collection(db, 'snaps'), snapData);
@@ -838,6 +948,11 @@ export async function sendSnapToMultipleFriendsInCloud({
             isViewed: false,
             status: 'delivered',
             viewedAt: null,
+            openedAt: null,
+            replayAvailable: false,
+            replayUsed: false,
+            replayCount: 0,
+            savedToMemories: false,
             createdAt: serverTimestamp(),
             createdAtMs: now,
           };
