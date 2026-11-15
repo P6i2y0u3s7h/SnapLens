@@ -22,13 +22,15 @@ import {
   Edit2,
   X,
   Check,
-  UserPlus
+  UserPlus,
+  Copy
 } from 'lucide-react';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { useMemories } from '../hooks/useMemories';
 import { useStories } from '../hooks/useStories';
 import { useChat } from '../hooks/useChat';
+import toast from 'react-hot-toast';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -45,11 +47,21 @@ export default function ProfilePage() {
   const { myStories } = useStories();
   const { friends } = useChat();
 
+  const userHandle =
+    userProfile?.handle?.replace(/^@/, '') ||
+    userProfile?.username?.replace(/^@/, '') ||
+    (currentUser?.displayName ? currentUser.displayName.toLowerCase().replace(/[^a-z0-9_]/g, '') : null) ||
+    (currentUser?.email ? currentUser.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '') : null) ||
+    (currentUser?.uid ? `user_${currentUser.uid.substring(0, 6)}` : 'snaplens_creator');
+
+  const userId = currentUser?.uid || userProfile?.uid || null;
+
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(currentUser?.displayName || 'Snap Creator');
   const [editBio, setEditBio] = useState(
     userProfile?.bio || 'Exploring real-time camera shaders and capturing life moments.'
   );
+  const [editHandle, setEditHandle] = useState(userHandle);
 
   const photoCount = memories.filter((m) => m.type === 'photo').length;
   const videoCount = memories.filter((m) => m.type === 'video').length;
@@ -57,9 +69,11 @@ export default function ProfilePage() {
   const totalStreaks = friends.reduce((sum, f) => sum + (f.streak || 0), 0);
 
   const handleSaveProfile = async () => {
+    const cleanHandle = editHandle.trim().replace(/^@/, '').toLowerCase().replace(/[^a-z0-9_]/g, '') || userHandle;
     await updateUserProfile({
       displayName: editName,
       bio: editBio,
+      handle: cleanHandle,
     });
     setIsEditing(false);
   };
@@ -146,9 +160,26 @@ export default function ProfilePage() {
                       VIP
                     </span>
                   </h1>
-                  <p className="text-white/40 text-xs mt-0.5">
-                    {currentUser?.email || '@snaplens_creator'} • Snap Score:{' '}
-                    {memories.length * 25 + 500} 🔥
+                  <p className="text-white/40 text-xs mt-1 flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
+                    <span className="font-mono text-white/75 font-semibold">@{userHandle}</span>
+                    {userId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (navigator?.clipboard?.writeText) {
+                            navigator.clipboard.writeText(userId);
+                            toast.success('User ID copied to clipboard!', { icon: '📋' });
+                          }
+                        }}
+                        className="text-[10px] font-mono text-white/40 hover:text-[#FFFC00] bg-white/5 hover:bg-white/10 px-1.5 py-0.5 rounded border border-white/10 transition-colors flex items-center gap-1"
+                        title={`Click to copy User ID: ${userId}`}
+                      >
+                        <Copy className="w-2.5 h-2.5" />
+                        <span>ID: {userId.length > 10 ? `${userId.substring(0, 8)}...` : userId}</span>
+                      </button>
+                    )}
+                    <span>•</span>
+                    <span>Snap Score: {memories.length * 25 + 500} 🔥</span>
                   </p>
                 </div>
 
@@ -157,6 +188,7 @@ export default function ProfilePage() {
                     onClick={() => {
                       setEditName(currentUser?.displayName || '');
                       setEditBio(userProfile?.bio || '');
+                      setEditHandle(userHandle);
                       setIsEditing(true);
                     }}
                     className="glass-pill px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 hover:border-[#FFFC00]/40"
@@ -442,6 +474,22 @@ export default function ProfilePage() {
                       onChange={(e) => setEditName(e.target.value)}
                       className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white text-xs sm:text-sm focus:outline-none focus:border-[#FFFC00]"
                     />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-white/70 block mb-1">
+                      User ID / Handle
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 text-xs font-mono font-bold">@</span>
+                      <input
+                        type="text"
+                        value={editHandle}
+                        onChange={(e) => setEditHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                        placeholder="username"
+                        className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white text-xs sm:text-sm font-mono focus:outline-none focus:border-[#FFFC00]"
+                      />
+                    </div>
                   </div>
 
                   <div>
