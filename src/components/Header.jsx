@@ -105,14 +105,6 @@ export default function Header() {
           >
             <Settings className="w-4 h-4" />
           </button>
-          
-          <button
-            onClick={() => handleNav('/camera')}
-            className="btn-snap px-3.5 sm:px-4 py-2 text-xs font-bold flex items-center gap-2 group shadow-md shadow-[#FFFC00]/20"
-          >
-            <Camera className="w-4 h-4 text-black group-hover:scale-110 transition-transform" />
-            <span className="hidden sm:inline">Camera</span>
-          </button>
         </div>
       </div>
     </header>
