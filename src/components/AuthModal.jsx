@@ -3,22 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Lock, Mail, User, Sparkles, Check, ArrowRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
-const AVATAR_PRESETS = [
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-];
-
 export default function AuthModal() {
   const { isAuthModalOpen, setIsAuthModalOpen, login, register, isFirebaseConfigured } = useAuth();
   const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_PRESETS[0]);
   const [isLoading, setIsLoading] = useState(false);
 
   if (!isAuthModalOpen) return null;
@@ -32,7 +22,7 @@ export default function AuthModal() {
       if (mode === 'login') {
         await login(email, password);
       } else {
-        await register(email, password, displayName || email.split('@')[0], selectedAvatar);
+        await register(email, password, displayName || email.split('@')[0]);
       }
     } catch {
       // Error toast already displayed
@@ -102,46 +92,21 @@ export default function AuthModal() {
           {/* Auth Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && (
-              <>
-                {/* Avatar Preset Selector */}
-                <div>
-                  <span className="text-[11px] font-semibold text-white/70 block mb-2">
-                    Choose Your Bitmoji / Avatar:
-                  </span>
-                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-                    {AVATAR_PRESETS.map((av) => (
-                      <button
-                        type="button"
-                        key={av}
-                        onClick={() => setSelectedAvatar(av)}
-                        className={`w-11 h-11 rounded-full flex-shrink-0 overflow-hidden border-2 transition-transform ${
-                          selectedAvatar === av
-                            ? 'scale-110 border-[#FFFC00] shadow-md shadow-[#FFFC00]/30'
-                            : 'border-transparent opacity-60 hover:opacity-100'
-                        }`}
-                      >
-                        <img src={av} alt="Avatar" className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
+              <div>
+                <label className="text-[11px] font-semibold text-white/70 block mb-1">
+                  Display Name
+                </label>
+                <div className="relative flex items-center">
+                  <User className="absolute left-3.5 w-4 h-4 text-white/40" />
+                  <input
+                    type="text"
+                    placeholder="e.g. Alex Rivers"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white placeholder-white/30 text-xs sm:text-sm focus:outline-none focus:border-[#FFFC00]"
+                  />
                 </div>
-
-                <div>
-                  <label className="text-[11px] font-semibold text-white/70 block mb-1">
-                    Display Name
-                  </label>
-                  <div className="relative flex items-center">
-                    <User className="absolute left-3.5 w-4 h-4 text-white/40" />
-                    <input
-                      type="text"
-                      placeholder="e.g. Alex Rivers"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white placeholder-white/30 text-xs sm:text-sm focus:outline-none focus:border-[#FFFC00]"
-                    />
-                  </div>
-                </div>
-              </>
+              </div>
             )}
 
             <div>

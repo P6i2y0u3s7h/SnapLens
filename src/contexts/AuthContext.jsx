@@ -98,7 +98,9 @@ export function AuthProvider({ children }) {
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCred.user;
 
-        const photo = avatarUrl || DEFAULT_DEMO_USER.photoURL;
+        const photo =
+          avatarUrl ||
+          `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(displayName || email)}`;
         await updateProfile(user, {
           displayName,
           photoURL: photo,
@@ -136,7 +138,9 @@ export function AuthProvider({ children }) {
         uid: `user_${Date.now()}`,
         email,
         displayName,
-        photoURL: avatarUrl || DEFAULT_DEMO_USER.photoURL,
+        photoURL:
+          avatarUrl ||
+          `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(displayName || email)}`,
         bio: 'SnapLens Creator ✨',
         handle: displayName.toLowerCase().replace(/\s+/g, '_'),
         streakCount: 1,
