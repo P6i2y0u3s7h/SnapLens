@@ -109,8 +109,14 @@ export default function CameraPage() {
   const { addSnapToMyStory } = useStories();
   const { currentUser } = useAuth();
 
-  // Face Tracking & AR Face Lenses
-  const { faces, isFaceDetected, activeFaceLens, setActiveFaceLens } = useFaceTracking(videoRef, true);
+  // High-Performance Face Tracking & AR Face Lenses (Zero React re-renders for coordinate stream)
+  const {
+    facesRef,
+    isFaceDetected,
+    activeFaceLens,
+    activeFaceLensRef,
+    setActiveFaceLens,
+  } = useFaceTracking(videoRef, !capturedPhotoUrl && !recordedVideoData);
 
   // Live Canvas 60 FPS animation reference for AR Filters
   const arCanvasRef = useRef(null);
@@ -141,40 +147,114 @@ export default function CameraPage() {
   const [isSoundEffectsMuted, setIsSoundEffectsMuted] = useState(isSoundMuted());
   const cameraOpenedSoundPlayedRef = useRef(false);
 
-  // 60 FPS Continuous AR Filter Animation Loop
+  // Reference for facingMode so 60 FPS animation loop has zero effect re-binding
+  const facingModeRef = useRef(facingMode);
   useEffect(() => {
-    let animId = null;
-    const renderLoop = (time) => {
-      if (arCanvasRef.current && videoRef.current) {
-        const canvas = arCanvasRef.current;
-        const rect = canvas.getBoundingClientRect();
-        if (canvas.width !== rect.width || canvas.height !== rect.height) {
-          canvas.width = rect.width;
-          canvas.height = rect.height;
-        }
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    facingModeRef.current = facingMode;
+  }, [facingMode]);
 
-        if (activeFaceLens && activeFaceLens !== 'none') {
-          renderArFilterOnCanvas(
-            ctx,
-            activeFaceLens,
-            faces,
-            canvas.width,
-            canvas.height,
-            facingMode,
-            time / 1000
-          );
+  // Canvas Resolution Synchronization (Zero Layout Thrashing inside animation frame loop)
+  useEffect(() => {
+    const canvas = arCanvasRef.current;
+    if (!canvas) return;
+
+    const syncCanvasSize = () => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        const targetW = Math.round(rect.width);
+        const targetH = Math.round(rect.height);
+        if (canvas.width !== targetW || canvas.height !== targetH) {
+          canvas.width = targetW;
+          canvas.height = targetH;
         }
       }
+    };
+
+    syncCanvasSize();
+    const observer = new ResizeObserver(syncCanvasSize);
+    observer.observe(canvas);
+    window.addEventListener('resize', syncCanvasSize, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', syncCanvasSize);
+    };
+  }, []);
+
+  // 60 FPS Continuous AR Filter Animation Loop (Mounted once, NEVER restarts on filter switches)
+  useEffect(() => {
+    let animId = null;
+
+    const renderLoop = (time) => {
+      const canvas = arCanvasRef.current;
+      const video = videoRef.current;
+
+      if (canvas && video) {
+        const width = canvas.width;
+        const height = canvas.height;
+
+        if (width > 0 && height > 0) {
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, width, height);
+
+          const currentLens = activeFaceLensRef.current;
+          const currentFaces = facesRef.current;
+
+          if (currentLens && currentLens !== 'none' && currentFaces && currentFaces.length > 0) {
+            renderArFilterOnCanvas(
+              ctx,
+              currentLens,
+              currentFaces,
+              width,
+              height,
+              facingModeRef.current,
+              time / 1000
+            );
+          }
+        }
+      }
+
       animId = requestAnimationFrame(renderLoop);
     };
 
     animId = requestAnimationFrame(renderLoop);
+
     return () => {
       if (animId) cancelAnimationFrame(animId);
     };
-  }, [activeFaceLens, faces, facingMode]);
+  }, []); // Mounted once: permanent 60 FPS loop with instant filter switches
+
+  // Memoized filter lists for zero-overhead filter switching
+  const filteredArFilters = useMemo(() => {
+    return AR_FILTERS.filter((f) => {
+      if (f.id === 'none') return true;
+      const matchCategory =
+        selectedCategory === 'All' ||
+        f.category === selectedCategory ||
+        (f.tags && f.tags.includes(selectedCategory.toLowerCase()));
+      const matchQuery =
+        !filterSearchQuery.trim() ||
+        f.name.toLowerCase().includes(filterSearchQuery.toLowerCase()) ||
+        (f.tags && f.tags.some((t) => t.includes(filterSearchQuery.toLowerCase())));
+      return matchCategory && matchQuery;
+    });
+  }, [selectedCategory, filterSearchQuery]);
+
+  const handleSelectFaceLens = useCallback(
+    (lensId) => {
+      playFilterPopSound();
+      setActiveFaceLens(lensId);
+    },
+    [setActiveFaceLens]
+  );
+
+  const handleSelectColorFilter = useCallback(
+    (filter) => {
+      playFilterPopSound();
+      setActiveFilter(filter);
+    },
+    [setActiveFilter]
+  );
 
   // Play subtle camera open chime once when live stream is successfully initialized
   useEffect(() => {
@@ -295,11 +375,13 @@ export default function CameraPage() {
 
       // Pass AR face lens overlay callback to composite onto canvas snapshot
       const photoDataUrl = capturePhoto((ctx, width, height, currentFacing) => {
-        if (activeFaceLens && activeFaceLens !== 'none') {
+        const currentLens = activeFaceLensRef.current;
+        const currentFaces = facesRef.current;
+        if (currentLens && currentLens !== 'none' && currentFaces && currentFaces.length > 0) {
           renderArFilterOnCanvas(
             ctx,
-            activeFaceLens,
-            faces,
+            currentLens,
+            currentFaces,
             width,
             height,
             currentFacing,
@@ -372,11 +454,13 @@ export default function CameraPage() {
             ctx.drawImage(video, 0, 0, recordCanvas.width, recordCanvas.height);
             ctx.restore();
 
-            if (activeFaceLens && activeFaceLens !== 'none') {
+            const currentLens = activeFaceLensRef.current;
+            const currentFaces = facesRef.current;
+            if (currentLens && currentLens !== 'none' && currentFaces && currentFaces.length > 0) {
               renderArFilterOnCanvas(
                 ctx,
-                activeFaceLens,
-                faces,
+                currentLens,
+                currentFaces,
                 recordCanvas.width,
                 recordCanvas.height,
                 'environment',
@@ -692,7 +776,7 @@ export default function CameraPage() {
   }
 
   // Active first face for AR rendering
-  const activeFace = faces && faces.length > 0 ? faces[0] : null;
+  const activeFace = facesRef.current && facesRef.current.length > 0 ? facesRef.current[0] : null;
 
   return (
     <div className="fixed inset-0 bg-black text-white overflow-hidden select-none touch-none">
@@ -1524,31 +1608,17 @@ export default function CameraPage() {
           {/* Snapchat-Style Circular Lens Carousel */}
           <div className="w-full max-w-xl mx-auto flex items-center justify-start sm:justify-center gap-3.5 overflow-x-auto no-scrollbar py-1.5 px-3 mb-2.5">
             {lensMode === 'ar_lenses' ? (
-              // 10 Interactive AR Face Filters
-              AR_FILTERS.filter((f) => {
-                if (f.id === 'none') return true;
-                const matchCategory =
-                  selectedCategory === 'All' ||
-                  f.category === selectedCategory ||
-                  f.tags.includes(selectedCategory.toLowerCase());
-                const matchQuery =
-                  !filterSearchQuery.trim() ||
-                  f.name.toLowerCase().includes(filterSearchQuery.toLowerCase()) ||
-                  f.tags.some((t) => t.includes(filterSearchQuery.toLowerCase()));
-                return matchCategory && matchQuery;
-              }).map((lens) => {
+              // 10 Interactive AR Face Filters (Instant Switch & Zero Latency)
+              filteredArFilters.map((lens) => {
                 const isSelected = activeFaceLens === lens.id;
                 return (
                   <button
                     key={lens.id}
-                    onClick={() => {
-                      playFilterPopSound();
-                      setActiveFaceLens(lens.id);
-                    }}
-                    className="flex flex-col items-center gap-1 flex-shrink-0 group focus:outline-none transition-transform"
+                    onClick={() => handleSelectFaceLens(lens.id)}
+                    className="flex flex-col items-center gap-1 flex-shrink-0 group focus:outline-none transition-transform active:scale-95"
                   >
                     <div
-                      className={`relative w-13 h-13 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-2xl transition-all duration-300 ${
+                      className={`relative w-13 h-13 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-2xl transition-transform duration-150 ${
                         isSelected
                           ? 'scale-110 shadow-lg shadow-[#FFFC00]/40 ring-2 ring-[#FFFC00] ring-offset-2 ring-offset-black bg-[#FFFC00]/25'
                           : 'opacity-75 group-hover:opacity-100 hover:scale-105 border border-white/20 bg-black/40'
@@ -1578,14 +1648,11 @@ export default function CameraPage() {
                 return (
                   <button
                     key={filter.id}
-                    onClick={() => {
-                      playFilterPopSound();
-                      setActiveFilter(filter);
-                    }}
-                    className="flex flex-col items-center gap-1 flex-shrink-0 group focus:outline-none"
+                    onClick={() => handleSelectColorFilter(filter)}
+                    className="flex flex-col items-center gap-1 flex-shrink-0 group focus:outline-none active:scale-95"
                   >
                     <div
-                      className={`relative w-13 h-13 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-300 ${
+                      className={`relative w-13 h-13 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-transform duration-150 ${
                         isSelected
                           ? 'scale-110 shadow-lg shadow-[#FFFC00]/30 ring-2 ring-[#FFFC00] ring-offset-2 ring-offset-black'
                           : 'opacity-70 group-hover:opacity-100 hover:scale-105 border border-white/20 bg-black/40'
