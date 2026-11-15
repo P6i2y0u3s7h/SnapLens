@@ -578,8 +578,36 @@ export default function ChatPage() {
                   </div>
                 )}
                 {filteredFriends.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-white/40">
-                    No friends found matching "{searchQuery}"
+                  <div className="p-8 text-center text-xs text-white/40 flex flex-col items-center justify-center min-h-[240px]">
+                    {searchQuery.trim() ? (
+                      <p>No friends found matching "{searchQuery}"</p>
+                    ) : (
+                      <div className="flex flex-col items-center gap-3 max-w-xs">
+                        <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-[#FFFC00]">
+                          <UserPlus className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-white mb-1">No Friends Yet</h4>
+                          <p className="text-[11px] text-white/50 leading-relaxed">
+                            Search registered users or add friends by username handle to start chatting and sending Snaps!
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <button
+                            onClick={() => setActiveTab('find')}
+                            className="px-3.5 py-1.5 rounded-full bg-[#FFFC00] text-black font-extrabold text-xs shadow-md shadow-[#FFFC00]/20 hover:scale-105 active:scale-95 transition-all"
+                          >
+                            Find Users
+                          </button>
+                          <button
+                            onClick={() => setShowAddFriendModal(true)}
+                            className="px-3.5 py-1.5 rounded-full bg-white/10 text-white font-bold text-xs border border-white/15 hover:bg-white/15 transition-all"
+                          >
+                            Add Handle
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   filteredFriends.map((friend) => {

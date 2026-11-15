@@ -9,105 +9,8 @@ import { useAuth } from '../contexts/AuthContext';
 const STORIES_STORAGE_KEY = 'snaplens_stories_v2';
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
-const INITIAL_FRIEND_STORIES = [
-  {
-    id: 'friend_sophia',
-    user: {
-      id: 'friend_sophia',
-      name: 'Sophia Chen',
-      handle: 'sophiac',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80',
-    },
-    hasUnseen: true,
-    lastUpdated: '12m ago',
-    items: [
-      {
-        id: 's_1',
-        type: 'photo',
-        url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1080&q=80',
-        caption: 'Golden hour at Laguna Beach ✨🌅',
-        filter: 'Warm',
-        time: '12m ago',
-        createdAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
-      },
-      {
-        id: 's_2',
-        type: 'photo',
-        url: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=1080&q=80',
-        caption: 'Salt in the air, sand in my hair 🌊',
-        filter: 'Cinematic',
-        time: '2h ago',
-        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      },
-    ],
-  },
-  {
-    id: 'friend_liam',
-    user: {
-      id: 'friend_liam',
-      name: 'Liam Vance',
-      handle: 'liamv',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80',
-    },
-    hasUnseen: true,
-    lastUpdated: '45m ago',
-    items: [
-      {
-        id: 's_3',
-        type: 'photo',
-        url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1080&q=80',
-        caption: 'Live set tonight was insane 🔥🎧',
-        filter: 'Retro',
-        time: '45m ago',
-        createdAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-      },
-    ],
-  },
-  {
-    id: 'friend_emma',
-    user: {
-      id: 'friend_emma',
-      name: 'Emma Watson',
-      handle: 'emma_lens',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=300&q=80',
-    },
-    hasUnseen: true,
-    lastUpdated: '2h ago',
-    items: [
-      {
-        id: 's_4',
-        type: 'photo',
-        url: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=1080&q=80',
-        caption: 'Coffee vibes & new ideas ☕💡',
-        filter: 'Vintage',
-        time: '2h ago',
-        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      },
-    ],
-  },
-  {
-    id: 'friend_alex',
-    user: {
-      id: 'friend_alex',
-      name: 'Alex Rivera',
-      handle: 'alex_r',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-    },
-    hasUnseen: false,
-    lastUpdated: '5h ago',
-    items: [
-      {
-        id: 's_5',
-        type: 'photo',
-        url: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1080&q=80',
-        caption: 'Neon nights in Tokyo 🏙️🏮',
-        filter: 'Cool',
-        time: '5h ago',
-        createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-      },
-    ],
-  },
-];
+const DEMO_STORY_IDS = new Set(['friend_sophia', 'friend_liam', 'friend_emma', 'friend_alex']);
+const INITIAL_FRIEND_STORIES = [];
 
 /**
  * Filter out stories that are older than 24 hours (Ephemeral 24h expiration)
@@ -126,14 +29,15 @@ export function useStories() {
   const [friendStories, setFriendStories] = useState([]);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
 
-  // 1. Initial Load from LocalStorage + 24h Expiration Check
+  // 1. Initial Load from LocalStorage + 24h Expiration Check (Purging demo stories)
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORIES_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         const validMyStories = filterExpiredStories(parsed.myStories || []);
-        const validFriends = (parsed.friendStories || INITIAL_FRIEND_STORIES)
+        const validFriends = (parsed.friendStories || [])
+          .filter((f) => !DEMO_STORY_IDS.has(f.id))
           .map((f) => ({
             ...f,
             items: filterExpiredStories(f.items),
@@ -141,12 +45,16 @@ export function useStories() {
           .filter((f) => f.items.length > 0);
 
         setMyStories(validMyStories);
-        setFriendStories(validFriends.length > 0 ? validFriends : INITIAL_FRIEND_STORIES);
+        setFriendStories(validFriends);
+        localStorage.setItem(
+          STORIES_STORAGE_KEY,
+          JSON.stringify({ myStories: validMyStories, friendStories: validFriends })
+        );
       } else {
-        setFriendStories(INITIAL_FRIEND_STORIES);
+        setFriendStories([]);
       }
     } catch {
-      setFriendStories(INITIAL_FRIEND_STORIES);
+      setFriendStories([]);
     }
   }, []);
 

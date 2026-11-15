@@ -6,31 +6,8 @@ const DB_VERSION = 1;
 const STORE_NAME = 'memories';
 const LOCAL_STORAGE_KEY = 'snaplens_memories_manifest_v3';
 
-// Starter Memories for great initial experience
-const STARTER_MEMORIES = [
-  {
-    id: 'starter_snap_1',
-    type: 'photo',
-    url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1000&q=80',
-    dataUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1000&q=80',
-    filter: 'Golden Glow',
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-    favorite: true,
-    title: 'Sunset Portrait Snap',
-    isCloudSynced: true,
-  },
-  {
-    id: 'starter_snap_2',
-    type: 'photo',
-    url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=1000&q=80',
-    dataUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=1000&q=80',
-    filter: 'Cyber Neon',
-    createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-    favorite: false,
-    title: 'Neon Nights Snap',
-    isCloudSynced: false,
-  },
-];
+// Starter Memories (empty by default for pure user media)
+const STARTER_MEMORIES = [];
 
 // Initialize IndexedDB for storing large photo & video blobs safely
 function openIndexedDB() {
@@ -128,9 +105,9 @@ export function useMemories() {
     // Deduplicate items by ID
     const mergedMap = new Map();
 
-    // Add local memories first
+    // Add local memories first (filtering any legacy starter demo items)
     hydratedLocal.forEach((item) => {
-      if (item && item.id) {
+      if (item && item.id && !item.id.startsWith('starter_snap_')) {
         mergedMap.set(item.id, item);
       }
     });

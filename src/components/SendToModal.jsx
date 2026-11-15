@@ -366,8 +366,17 @@ export default function SendToModal({
 
             {/* Friends Rows */}
             {filteredFriends.length === 0 ? (
-              <div className="py-12 text-center text-white/40 text-xs">
-                No friends found matching "{searchQuery}"
+              <div className="py-8 text-center text-white/40 text-xs">
+                {searchQuery.trim() ? (
+                  `No friends found matching "${searchQuery}"`
+                ) : (
+                  <div className="flex flex-col items-center gap-1.5 py-4">
+                    <p className="text-white/70 font-bold text-xs">No friends added yet</p>
+                    <p className="text-[11px] text-white/40 max-w-xs">
+                      Add friends in the Chat tab to send personal snaps, or share to My Story above!
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               filteredFriends.map((friend) => {

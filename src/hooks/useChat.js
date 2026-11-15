@@ -16,106 +16,20 @@ import { useAuth } from '../contexts/AuthContext';
 const CHAT_STORAGE_KEY = 'snaplens_chat_v2';
 const REQUESTS_STORAGE_KEY = 'snaplens_friend_requests_v2';
 
-const INITIAL_FRIENDS = [
-  {
-    id: 'friend_1',
-    name: 'Sophia Chen',
-    handle: 'sophiac',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80',
-    streak: 48,
-    snapScore: 14250,
-    lastInteraction: 'New Snap',
-    lastInteractionTime: '5m ago',
-    unreadCount: 1,
-    status: 'received', // 'received' | 'delivered' | 'opened'
-    messages: [
-      { id: 'm1', sender: 'them', text: 'Hey! Loved that sunset snap with the warm lens 🌅', time: '10:45 AM' },
-      { id: 'm2', sender: 'me', text: 'Thanks! The warm sunset filter on SnapLens is insane 🔥', time: '10:46 AM' },
-      {
-        id: 'm3',
-        sender: 'them',
-        type: 'snap',
-        snapUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
-        originalSnapUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
-        mediaType: 'photo',
-        caption: 'Look at today’s waves! 🌊',
-        time: '5m ago',
-        opened: false,
-        replayAvailable: false,
-        replayUsed: false,
-        replayCount: 0,
-        savedToMemories: false,
-      },
-    ],
-  },
-  {
-    id: 'friend_2',
-    name: 'Liam Vance',
-    handle: 'liamv',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80',
-    streak: 19,
-    snapScore: 9400,
-    lastInteraction: 'Delivered',
-    lastInteractionTime: '1h ago',
-    unreadCount: 0,
-    status: 'delivered',
-    messages: [
-      { id: 'm4', sender: 'me', text: 'Are you coming to the music session tonight?', time: '1:15 PM' },
-      { id: 'm5', sender: 'them', text: 'Yeah just packing my synth! See you there 🎹', time: '1:18 PM' },
-    ],
-  },
-  {
-    id: 'friend_3',
-    name: 'Emma Watson',
-    handle: 'emma_lens',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=300&q=80',
-    streak: 7,
-    snapScore: 6120,
-    lastInteraction: 'Opened',
-    lastInteractionTime: '3h ago',
-    unreadCount: 0,
-    status: 'opened',
-    messages: [
-      { id: 'm6', sender: 'them', text: 'Check out the new cinematic filter, it looks like a movie 🎬', time: 'Yesterday' },
-    ],
-  },
-  {
-    id: 'friend_4',
-    name: 'Alex Rivera',
-    handle: 'alex_r',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-    streak: 85,
-    snapScore: 32100,
-    lastInteraction: 'Received',
-    lastInteractionTime: 'Yesterday',
-    unreadCount: 0,
-    status: 'opened',
-    messages: [
-      { id: 'm7', sender: 'them', text: 'Let’s keep the streak going! 🔥85', time: 'Yesterday' },
-    ],
-  },
-];
+// Known legacy demo IDs to automatically clean up from local persistence
+const DEMO_IDS = new Set([
+  'friend_1',
+  'friend_2',
+  'friend_3',
+  'friend_4',
+  'user_david',
+  'user_maya',
+  'user_jordan',
+  'user_clara',
+]);
 
-const INITIAL_REQUESTS = [
-  {
-    id: 'req_1',
-    senderId: 'user_david',
-    senderName: 'David Kim',
-    senderHandle: 'davidk',
-    senderAvatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80',
-    status: 'pending',
-    time: '2h ago',
-  },
-  {
-    id: 'req_2',
-    senderId: 'user_maya',
-    senderName: 'Maya Patel',
-    senderHandle: 'mayap',
-    senderAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=300&q=80',
-    status: 'pending',
-    time: 'Yesterday',
-  },
-];
+const INITIAL_FRIENDS = [];
+const INITIAL_REQUESTS = [];
 
 export function useChat() {
   const { currentUser, isFirebaseConfigured } = useAuth();
@@ -125,25 +39,33 @@ export function useChat() {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // 1. Initial Load from LocalStorage
+  // 1. Initial Load from LocalStorage (Purging any legacy demo items)
   useEffect(() => {
     try {
       const storedFriends = localStorage.getItem(CHAT_STORAGE_KEY);
       if (storedFriends) {
-        setFriends(JSON.parse(storedFriends));
+        const parsed = JSON.parse(storedFriends);
+        const cleaned = (parsed || []).filter((f) => !DEMO_IDS.has(f.id));
+        setFriends(cleaned);
+        localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(cleaned));
       } else {
-        setFriends(INITIAL_FRIENDS);
+        setFriends([]);
       }
 
       const storedReqs = localStorage.getItem(REQUESTS_STORAGE_KEY);
       if (storedReqs) {
-        setFriendRequests(JSON.parse(storedReqs));
+        const parsedReqs = JSON.parse(storedReqs);
+        const cleanedReqs = (parsedReqs || []).filter(
+          (r) => !DEMO_IDS.has(r.id) && !DEMO_IDS.has(r.senderId)
+        );
+        setFriendRequests(cleanedReqs);
+        localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(cleanedReqs));
       } else {
-        setFriendRequests(INITIAL_REQUESTS);
+        setFriendRequests([]);
       }
     } catch {
-      setFriends(INITIAL_FRIENDS);
-      setFriendRequests(INITIAL_REQUESTS);
+      setFriends([]);
+      setFriendRequests([]);
     }
   }, []);
 
@@ -225,30 +147,8 @@ export function useChat() {
           cloudUsers = await searchUsersInCloud(queryTerm);
         }
 
-        // Also search existing local seed directory
-        const existingIds = new Set(friends.map((f) => f.id));
-        const combined = [...cloudUsers];
-
-        // Add matching demo users not yet in friends list
-        const demoPool = [
-          { id: 'user_david', name: 'David Kim', handle: 'davidk', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80', streak: 12, snapScore: 7800 },
-          { id: 'user_maya', name: 'Maya Patel', handle: 'mayap', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=300&q=80', streak: 25, snapScore: 16400 },
-          { id: 'user_jordan', name: 'Jordan Lee', handle: 'jordanl', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80', streak: 4, snapScore: 3200 },
-          { id: 'user_clara', name: 'Clara Oswald', handle: 'clara_o', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=300&q=80', streak: 52, snapScore: 28900 },
-        ];
-
-        demoPool.forEach((u) => {
-          if (
-            (u.name.toLowerCase().includes(queryTerm) || u.handle.toLowerCase().includes(queryTerm)) &&
-            !existingIds.has(u.id) &&
-            !combined.some((c) => c.id === u.id)
-          ) {
-            combined.push(u);
-          }
-        });
-
-        setSearchResults(combined);
-        return combined;
+        setSearchResults(cloudUsers);
+        return cloudUsers;
       } catch (err) {
         console.warn('Search error:', err);
         return [];
