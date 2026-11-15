@@ -47,7 +47,7 @@ export async function uploadMediaToCloud({
   onProgress = null,
 }) {
   // Determine effective userId
-  const effectiveUserId = userId || auth?.currentUser?.uid || 'demo_user_snaplens_01';
+  const effectiveUserId = userId || auth?.currentUser?.uid || 'user_local';
 
   // If Firebase is not configured or in offline demo mode, use local storage engine
   if (!isFirebaseConfigured || !storage || !db) {
@@ -167,7 +167,7 @@ export async function uploadMediaToCloud({
  * Fetches user photos and videos from Firestore
  */
 export async function fetchUserCloudMedia(userId = null) {
-  const effectiveUserId = userId || auth?.currentUser?.uid || 'demo_user_snaplens_01';
+  const effectiveUserId = userId || auth?.currentUser?.uid;
 
   if (!isFirebaseConfigured || !db || !effectiveUserId) {
     return [];
@@ -199,6 +199,50 @@ export async function fetchUserCloudMedia(userId = null) {
   } catch (err) {
     console.warn('Failed to fetch user media from Firestore:', err);
     return [];
+  }
+}
+
+/**
+ * Subscribes to real-time user cloud memories/snaps from Firestore
+ */
+export function subscribeToUserCloudMedia(userId, onUpdate) {
+  const effectiveUserId = userId || auth?.currentUser?.uid;
+  if (!isFirebaseConfigured || !db || !effectiveUserId || typeof onUpdate !== 'function') {
+    return () => {};
+  }
+
+  try {
+    const q = query(
+      collection(db, 'snaps'),
+      where('userId', '==', effectiveUserId)
+    );
+
+    return onSnapshot(
+      q,
+      (querySnapshot) => {
+        const media = [];
+        querySnapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          media.push({
+            id: docSnap.id,
+            cloudId: docSnap.id,
+            ...data,
+            createdAt: data.createdAt?.toDate
+              ? data.createdAt.toDate().toISOString()
+              : data.createdAt || new Date().toISOString(),
+          });
+        });
+
+        media.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        onUpdate(media);
+      },
+      (err) => {
+        console.warn('subscribeToUserCloudMedia error:', err);
+      }
+    );
+  } catch (e) {
+    console.warn('subscribeToUserCloudMedia listener error:', e);
+    return () => {};
   }
 }
 

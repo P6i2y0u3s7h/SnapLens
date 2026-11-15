@@ -606,44 +606,42 @@ export default function EditorPage() {
       }
     }
 
-    try {
-      const uploadRes = await uploadMediaToCloud({
-        dataUrl: isVideo ? null : finalUrl,
-        fileBlob: isVideo ? effectiveBlob : null,
-        type: isVideo ? 'video' : 'photo',
-        filter: selectedFilter.name,
-        caption,
-        visibility: 'private',
-        userId: currentUser?.uid,
-      });
-
-      const effectiveUrl = uploadRes?.mediaUrl || finalUrl;
-
-      await saveMemory({
-        type: isVideo ? 'video' : 'photo',
-        dataUrl: isVideo ? null : finalUrl,
-        url: effectiveUrl,
-        blob: effectiveBlob,
-        filter: selectedFilter.name,
-        title: caption,
-        cloudId: uploadRes?.cloudId || null,
-        storagePath: uploadRes?.storagePath || null,
-        isLocal: uploadRes?.isLocal ?? true,
-      });
-    } catch (e) {
-      console.debug('Cloud upload fallback:', e);
-      await saveMemory({
-        type: isVideo ? 'video' : 'photo',
-        dataUrl: isVideo ? null : finalUrl,
-        url: finalUrl,
-        blob: effectiveBlob,
-        filter: selectedFilter.name,
-        title: caption,
-      });
-    }
+    // 1. Immediately save locally to Memories for instant display
+    const localMemory = await saveMemory({
+      type: isVideo ? 'video' : 'photo',
+      dataUrl: isVideo ? null : finalUrl,
+      url: finalUrl,
+      blob: effectiveBlob,
+      filter: selectedFilter.name,
+      title: caption,
+      isLocal: true,
+    });
 
     setIsExporting(false);
-    toast.success(isVideo ? 'Video saved to Memories!' : 'Saved to Memories!', { icon: '🎉' });
+    toast.success(isVideo ? 'Video saved to Memories! 🎥' : 'Saved to Memories! 📸', { icon: '🎉' });
+
+    // 2. Upload to Cloud in background
+    uploadMediaToCloud({
+      dataUrl: isVideo ? null : finalUrl,
+      fileBlob: isVideo ? effectiveBlob : null,
+      type: isVideo ? 'video' : 'photo',
+      filter: selectedFilter.name,
+      caption,
+      visibility: 'private',
+      userId: currentUser?.uid,
+    })
+      .then((uploadRes) => {
+        if (uploadRes?.success && uploadRes?.mediaUrl) {
+          saveMemory({
+            ...localMemory,
+            cloudId: uploadRes.cloudId,
+            url: uploadRes.mediaUrl,
+            storagePath: uploadRes.storagePath,
+            isLocal: false,
+          });
+        }
+      })
+      .catch((e) => console.debug('Background cloud sync note:', e));
   };
 
   // 12. Add to 24h My Story

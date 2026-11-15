@@ -267,9 +267,14 @@ export default function MemoriesPage() {
                     ) : (
                       <img
                         src={item.dataUrl || item.url}
-                        alt="Snap"
+                        alt={item.title || 'Snap'}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         loading="lazy"
+                        onError={(e) => {
+                          if (item.url && e.target.src !== item.url) {
+                            e.target.src = item.url;
+                          }
+                        }}
                       />
                     )}
 
@@ -354,8 +359,13 @@ export default function MemoriesPage() {
                         ) : (
                           <img
                             src={item.dataUrl || item.url}
-                            alt="Snap thumbnail"
+                            alt={item.title || 'Snap thumbnail'}
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                              if (item.url && e.target.src !== item.url) {
+                                e.target.src = item.url;
+                              }
+                            }}
                           />
                         )}
                       </div>

@@ -514,45 +514,49 @@ export default function CameraPage() {
 
     const snapTitle = activeFaceLens !== 'none' ? `AR Lens (${activeFaceLens}) Snap` : 'Camera Snap';
 
+    // 1. Save immediately to Memories for zero-latency instant display
+    const localMemory = await saveMemory({
+      type: 'photo',
+      dataUrl: capturedPhotoUrl,
+      url: capturedPhotoUrl,
+      filter: activeFilter.name,
+      title: snapTitle,
+      isLocal: true,
+    });
+
+    toast.success('Saved to Memories & downloaded! 📸', { icon: '💾' });
+
+    // Download copy
     try {
-      const uploadRes = await uploadMediaToCloud({
-        dataUrl: capturedPhotoUrl,
-        type: 'photo',
-        filter: activeFilter.name,
-        caption: snapTitle,
-        visibility: 'private',
-        userId: currentUser?.uid,
-      });
+      const a = document.createElement('a');
+      a.href = capturedPhotoUrl;
+      a.download = `snaplens_photo_${Date.now()}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {}
 
-      await saveMemory({
-        type: 'photo',
-        dataUrl: capturedPhotoUrl,
-        url: uploadRes?.mediaUrl || capturedPhotoUrl,
-        filter: activeFilter.name,
-        title: snapTitle,
-        cloudId: uploadRes?.cloudId || null,
-        storagePath: uploadRes?.storagePath || null,
-        isLocal: uploadRes?.isLocal ?? true,
-      });
-    } catch (e) {
-      console.debug('Cloud upload fallback:', e);
-      await saveMemory({
-        type: 'photo',
-        dataUrl: capturedPhotoUrl,
-        url: capturedPhotoUrl,
-        filter: activeFilter.name,
-        title: snapTitle,
-      });
-    }
-
-    const a = document.createElement('a');
-    a.href = capturedPhotoUrl;
-    a.download = `snaplens_photo_${Date.now()}.jpg`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-
-    toast.success('Photo saved & downloaded!', { icon: '💾' });
+    // 2. Upload to Cloud in background
+    uploadMediaToCloud({
+      dataUrl: capturedPhotoUrl,
+      type: 'photo',
+      filter: activeFilter.name,
+      caption: snapTitle,
+      visibility: 'private',
+      userId: currentUser?.uid,
+    })
+      .then((uploadRes) => {
+        if (uploadRes?.success && uploadRes?.mediaUrl) {
+          saveMemory({
+            ...localMemory,
+            cloudId: uploadRes.cloudId,
+            url: uploadRes.mediaUrl,
+            storagePath: uploadRes.storagePath,
+            isLocal: false,
+          });
+        }
+      })
+      .catch((e) => console.debug('Background photo cloud upload note:', e));
 
     if (location.state?.sendToFriendId) {
       sendSnapToFriend(location.state.sendToFriendId, { snapUrl: capturedPhotoUrl, type: 'photo' });
@@ -611,51 +615,52 @@ export default function CameraPage() {
     const finalDuration = recordingSeconds || 5;
     const videoTitle = videoCaption ? `Video Snap: ${videoCaption}` : 'Camera Video Snap';
 
-    // Cloud upload attempt
-    try {
-      const uploadRes = await uploadMediaToCloud({
-        fileBlob: recordedVideoData.blob,
-        type: 'video',
-        filter: finalFilterName,
-        duration: finalDuration,
-        caption: videoTitle,
-        visibility: 'private',
-        userId: currentUser?.uid,
-      });
+    // 1. Immediately save locally to Memories for instant display
+    const localMemory = await saveMemory({
+      type: 'video',
+      url: recordedVideoData.videoUrl,
+      blob: recordedVideoData.blob,
+      filter: finalFilterName,
+      duration: finalDuration,
+      title: videoTitle,
+      isLocal: true,
+    });
 
-      await saveMemory({
-        type: 'video',
-        url: uploadRes?.mediaUrl || recordedVideoData.videoUrl,
-        blob: recordedVideoData.blob,
-        filter: finalFilterName,
-        duration: finalDuration,
-        title: videoTitle,
-        cloudId: uploadRes?.cloudId || null,
-        storagePath: uploadRes?.storagePath || null,
-        isLocal: uploadRes?.isLocal ?? true,
-      });
-    } catch (e) {
-      console.debug('Cloud upload fallback:', e);
-      await saveMemory({
-        type: 'video',
-        url: recordedVideoData.videoUrl,
-        blob: recordedVideoData.blob,
-        filter: finalFilterName,
-        duration: finalDuration,
-        title: videoTitle,
-      });
-    }
+    toast.success('Video saved to Memories & downloaded! 🎥', { icon: '💾' });
 
     // Direct download
-    const a = document.createElement('a');
-    a.href = recordedVideoData.videoUrl;
-    const ext = recordedVideoData.mimeType?.includes('mp4') ? 'mp4' : 'webm';
-    a.download = `snaplens_video_${Date.now()}.${ext}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    try {
+      const a = document.createElement('a');
+      a.href = recordedVideoData.videoUrl;
+      const ext = recordedVideoData.mimeType?.includes('mp4') ? 'mp4' : 'webm';
+      a.download = `snaplens_video_${Date.now()}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {}
 
-    toast.success('Video downloaded & saved to Memories!', { icon: '🎥' });
+    // 2. Background cloud upload
+    uploadMediaToCloud({
+      fileBlob: recordedVideoData.blob,
+      type: 'video',
+      filter: finalFilterName,
+      duration: finalDuration,
+      caption: videoTitle,
+      visibility: 'private',
+      userId: currentUser?.uid,
+    })
+      .then((uploadRes) => {
+        if (uploadRes?.success && uploadRes?.mediaUrl) {
+          saveMemory({
+            ...localMemory,
+            cloudId: uploadRes.cloudId,
+            url: uploadRes.mediaUrl,
+            storagePath: uploadRes.storagePath,
+            isLocal: false,
+          });
+        }
+      })
+      .catch((e) => console.debug('Background video cloud upload note:', e));
 
     if (location.state?.sendToFriendId) {
       sendSnapToFriend(location.state.sendToFriendId, {
