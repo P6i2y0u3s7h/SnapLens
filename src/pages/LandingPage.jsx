@@ -23,11 +23,21 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header';
 import { FILTERS } from '../hooks/useCamera';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { currentUser, setIsAuthModalOpen } = useAuth();
   const [demoFilterIdx, setDemoFilterIdx] = useState(0);
   const heroRef = useRef(null);
+
+  const handleLaunchFeature = (route) => {
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    navigate(route);
+  };
 
   const { scrollYProgress } = useScroll({
     target: heroRef,
@@ -150,7 +160,7 @@ export default function LandingPage() {
           className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full sm:w-auto mb-12 sm:mb-16 px-4"
         >
           <button
-            onClick={() => navigate('/camera')}
+            onClick={() => handleLaunchFeature('/camera')}
             className="w-full sm:w-auto btn-snap px-7 sm:px-8 py-3.5 sm:py-4 text-sm sm:text-base font-bold flex items-center justify-center gap-2.5 group shadow-xl shadow-[#FFFC00]/25"
           >
             <Camera className="w-5 h-5 text-black group-hover:rotate-12 transition-transform" />
@@ -159,7 +169,7 @@ export default function LandingPage() {
           </button>
 
           <button
-            onClick={() => navigate('/stories')}
+            onClick={() => handleLaunchFeature('/stories')}
             className="w-full sm:w-auto glass-pill px-7 sm:px-8 py-3.5 sm:py-4 text-sm sm:text-base font-semibold flex items-center justify-center gap-2.5 text-white"
           >
             <PlayCircle className="w-5 h-5 text-[#FFFC00]" />
@@ -235,14 +245,14 @@ export default function LandingPage() {
                 {/* Shutter row */}
                 <div className="flex items-center justify-between w-full px-2 pt-0.5">
                   <div 
-                    onClick={() => navigate('/memories')} 
+                    onClick={() => handleLaunchFeature('/memories')} 
                     className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-black/50 backdrop-blur-md border border-white/15 flex items-center justify-center cursor-pointer"
                   >
                     <ImageIcon className="w-4 h-4 text-white" />
                   </div>
 
                   <div 
-                    onClick={() => navigate('/camera')}
+                    onClick={() => handleLaunchFeature('/camera')} 
                     className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-4 border-white flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform"
                   >
                     <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white hover:bg-[#FFFC00] transition-colors" />
@@ -313,7 +323,7 @@ export default function LandingPage() {
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: i * 0.06 }}
                 whileHover={{ y: -6 }}
-                onClick={() => navigate(feature.route)}
+                onClick={() => handleLaunchFeature(feature.route)}
                 className="glass-panel rounded-3xl p-6 sm:p-7 flex flex-col justify-between group hover:border-[#FFFC00]/30 transition-all duration-300 cursor-pointer"
               >
                 <div>
@@ -421,7 +431,7 @@ export default function LandingPage() {
             </p>
 
             <button
-              onClick={() => navigate('/camera')}
+              onClick={() => handleLaunchFeature('/camera')}
               className="btn-snap px-8 sm:px-10 py-3.5 sm:py-4 text-sm sm:text-base font-bold inline-flex items-center gap-3 shadow-xl shadow-[#FFFC00]/30 hover:scale-105 transition-transform"
             >
               <Camera className="w-5 h-5 text-black" />
@@ -444,12 +454,12 @@ export default function LandingPage() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs">
-            <button onClick={() => navigate('/stories')} className="hover:text-white transition-colors">Stories</button>
-            <button onClick={() => navigate('/chat')} className="hover:text-white transition-colors">Chat</button>
-            <button onClick={() => navigate('/filters')} className="hover:text-white transition-colors">Lenses</button>
-            <button onClick={() => navigate('/memories')} className="hover:text-white transition-colors">Memories</button>
-            <button onClick={() => navigate('/profile')} className="hover:text-white transition-colors">Profile</button>
-            <button onClick={() => navigate('/settings')} className="hover:text-white transition-colors">Settings</button>
+            <button onClick={() => handleLaunchFeature('/stories')} className="hover:text-white transition-colors">Stories</button>
+            <button onClick={() => handleLaunchFeature('/chat')} className="hover:text-white transition-colors">Chat</button>
+            <button onClick={() => handleLaunchFeature('/filters')} className="hover:text-white transition-colors">Lenses</button>
+            <button onClick={() => handleLaunchFeature('/memories')} className="hover:text-white transition-colors">Memories</button>
+            <button onClick={() => handleLaunchFeature('/profile')} className="hover:text-white transition-colors">Profile</button>
+            <button onClick={() => handleLaunchFeature('/settings')} className="hover:text-white transition-colors">Settings</button>
           </div>
 
           <div className="text-[11px] text-center sm:text-right">

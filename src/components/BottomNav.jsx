@@ -3,12 +3,22 @@ import { Camera, Image as ImageIcon, MessageSquare, Sparkles, Compass, PlayCircl
 import { motion } from 'framer-motion';
 import { useChat } from '../hooks/useChat';
 import { useStories } from '../hooks/useStories';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { currentUser, setIsAuthModalOpen } = useAuth();
   const { friends } = useChat();
   const { friendStories } = useStories();
+
+  const handleNav = (path) => {
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    navigate(path);
+  };
 
   // Hide bottom nav on camera and editor for full immersion
   const hideOnPaths = ['/camera', '/editor'];
@@ -66,7 +76,7 @@ export default function BottomNav() {
             return (
               <button
                 key={item.path}
-                onClick={() => navigate(item.path)}
+                onClick={() => handleNav(item.path)}
                 className="group relative -top-4 sm:-top-5 flex flex-col items-center focus:outline-none"
                 aria-label="Open Camera"
               >
@@ -85,7 +95,7 @@ export default function BottomNav() {
           return (
             <button
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => handleNav(item.path)}
               className={`relative flex flex-col items-center justify-center w-14 sm:w-16 py-1 transition-colors duration-200 ${
                 isActive ? 'text-[#FFFC00]' : 'text-white/50 hover:text-white/80'
               }`}

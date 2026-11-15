@@ -5,6 +5,7 @@ import { AnimatePresence } from 'framer-motion';
 import { Camera, RefreshCw } from 'lucide-react';
 import { AuthProvider } from './contexts/AuthContext';
 import AuthModal from './components/AuthModal';
+import ProtectedRoute from './components/ProtectedRoute';
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -103,14 +104,70 @@ function AppContent() {
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<LandingPage />} />
-            <Route path="/camera" element={<CameraPage />} />
-            <Route path="/editor" element={<EditorPage />} />
-            <Route path="/memories" element={<MemoriesPage />} />
-            <Route path="/filters" element={<FiltersPage />} />
-            <Route path="/stories" element={<StoriesPage />} />
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route
+              path="/camera"
+              element={
+                <ProtectedRoute>
+                  <CameraPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/editor"
+              element={
+                <ProtectedRoute>
+                  <EditorPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/memories"
+              element={
+                <ProtectedRoute>
+                  <MemoriesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/filters"
+              element={
+                <ProtectedRoute>
+                  <FiltersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/stories"
+              element={
+                <ProtectedRoute>
+                  <StoriesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/chat"
+              element={
+                <ProtectedRoute>
+                  <ChatPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
             {/* Fallback route */}
             <Route path="*" element={<LandingPage />} />
           </Routes>

@@ -25,11 +25,11 @@ const DEFAULT_DEMO_USER = {
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(DEFAULT_DEMO_USER);
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  // Monitor live Firebase Auth or initialize local demo session
+  // Monitor live Firebase Auth or check local authenticated session
   useEffect(() => {
     if (isFirebaseConfigured && auth) {
       const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -70,7 +70,7 @@ export function AuthProvider({ children }) {
 
       return () => unsubscribe();
     } else {
-      // Offline fallback: check local storage for remembered demo session
+      // Local session mode: only restore if user explicitly logged in previously
       const savedUser = localStorage.getItem('snaplens_auth_user');
       if (savedUser) {
         try {
@@ -78,12 +78,12 @@ export function AuthProvider({ children }) {
           setCurrentUser(parsed);
           setUserProfile(parsed);
         } catch {
-          setCurrentUser(DEFAULT_DEMO_USER);
-          setUserProfile(DEFAULT_DEMO_USER);
+          setCurrentUser(null);
+          setUserProfile(null);
         }
       } else {
-        setCurrentUser(DEFAULT_DEMO_USER);
-        setUserProfile(DEFAULT_DEMO_USER);
+        setCurrentUser(null);
+        setUserProfile(null);
       }
       setLoading(false);
     }
@@ -241,6 +241,19 @@ export function AuthProvider({ children }) {
     toast.success('Profile updated successfully!', { icon: '✨' });
   };
 
+  // Guard action / navigation behind authentication
+  const requireAuth = (callbackOrAction) => {
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      toast('Please sign in or create an account to use this feature!', { icon: '🔒' });
+      return false;
+    }
+    if (typeof callbackOrAction === 'function') {
+      callbackOrAction();
+    }
+    return true;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -253,6 +266,7 @@ export function AuthProvider({ children }) {
         updateUserProfile,
         isAuthModalOpen,
         setIsAuthModalOpen,
+        requireAuth,
         isFirebaseConfigured,
       }}
     >

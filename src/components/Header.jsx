@@ -15,6 +15,18 @@ export default function Header() {
     { path: '/memories', label: 'Memories' },
   ];
 
+  const handleNav = (path) => {
+    if (path === '/') {
+      navigate('/');
+      return;
+    }
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    navigate(path);
+  };
+
   return (
     <header className="fixed top-0 left-0 right-0 z-40 bg-[#0A0A0F]/85 backdrop-blur-md border-b border-white/8 h-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-full flex items-center justify-between">
@@ -43,7 +55,7 @@ export default function Header() {
             return (
               <button
                 key={link.path}
-                onClick={() => navigate(link.path)}
+                onClick={() => handleNav(link.path)}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                   isActive
                     ? 'text-[#FFFC00] bg-white/5 font-bold shadow-sm'
@@ -85,7 +97,7 @@ export default function Header() {
           )}
 
           <button
-            onClick={() => navigate('/settings')}
+            onClick={() => handleNav('/settings')}
             className="w-9 h-9 rounded-xl glass-pill flex items-center justify-center text-white/70 hover:text-white transition-colors"
             title="Settings"
           >
@@ -93,7 +105,7 @@ export default function Header() {
           </button>
           
           <button
-            onClick={() => navigate('/camera')}
+            onClick={() => handleNav('/camera')}
             className="btn-snap px-3.5 sm:px-4 py-2 text-xs font-bold flex items-center gap-2 group shadow-md shadow-[#FFFC00]/20"
           >
             <Camera className="w-4 h-4 text-black group-hover:scale-110 transition-transform" />
