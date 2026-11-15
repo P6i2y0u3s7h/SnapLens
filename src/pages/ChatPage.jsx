@@ -465,11 +465,8 @@ export default function ChatPage() {
             {/* List Header */}
             <div className="p-4 border-b border-white/8 flex items-center justify-between">
               <div>
-                <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
-                  <span>Chat</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-[#FFFC00]/15 text-[#FFFC00] font-bold">
-                    {friends.length}
-                  </span>
+                <h1 className="text-xl font-black tracking-tight text-white">
+                  Chat
                 </h1>
               </div>
 
@@ -501,7 +498,7 @@ export default function ChatPage() {
                     : 'text-white/50 hover:text-white/80'
                 }`}
               >
-                Friends ({friends.length})
+                Friends
               </button>
               <button
                 onClick={() => setActiveTab('find')}
