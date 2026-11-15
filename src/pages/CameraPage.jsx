@@ -206,6 +206,18 @@ export default function CameraPage() {
     };
   }, [stopCamera]);
 
+  // Ensure live video element has stream attached and playing
+  useEffect(() => {
+    if (videoRef.current && streamRef.current) {
+      if (videoRef.current.srcObject !== streamRef.current) {
+        videoRef.current.srcObject = streamRef.current;
+      }
+      videoRef.current.play().catch((err) => {
+        console.debug('Autoplay video play catch:', err);
+      });
+    }
+  }, [isLoading, hasPermission, streamRef, videoRef]);
+
   // Format recording seconds to mm:ss
   const formatTime = (secs) => {
     const mins = Math.floor(secs / 60);
@@ -835,6 +847,12 @@ export default function CameraPage() {
           autoPlay
           playsInline
           muted
+          onLoadedMetadata={(e) => {
+            e.currentTarget.play().catch(() => {});
+          }}
+          onCanPlay={(e) => {
+            e.currentTarget.play().catch(() => {});
+          }}
           className={`w-full h-full object-cover transition-all duration-300 ${
             isFlippingLens ? 'scale-90 rotate-180 opacity-50 blur-sm' : ''
           }`}
@@ -850,6 +868,20 @@ export default function CameraPage() {
             ref={arCanvasRef}
             className="absolute inset-0 w-full h-full pointer-events-none z-20"
           />
+        )}
+
+        {/* Gentle Face Guidance Badge when AR Lens is Selected but No Face in Frame */}
+        {activeFaceLens !== 'none' && !isFaceDetected && !isLoading && !capturedPhotoUrl && !recordedVideoData && (
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="px-3.5 py-1.5 rounded-full bg-black/65 backdrop-blur-md border border-[#FFFC00]/40 text-white text-xs font-semibold flex items-center gap-2 shadow-xl"
+            >
+              <span className="w-2 h-2 rounded-full bg-[#FFFC00] animate-ping" />
+              <span>Looking for a face...</span>
+            </motion.div>
+          </div>
         )}
 
         {/* Rule of Thirds Grid Overlay */}
@@ -1275,106 +1307,111 @@ export default function CameraPage() {
 
       {/* BOTTOM CAMERA CONTROLS (Hidden when previewing captured snap) */}
       {!capturedPhotoUrl && !recordedVideoData && (
-        <footer className="absolute bottom-0 left-0 right-0 z-30 pb-4 sm:pb-7 pt-2 px-3 sm:px-4 bg-gradient-to-t from-black/95 via-black/55 to-transparent flex flex-col items-center">
-          {/* Active Filter Pill / Clear Filter Button */}
-          {activeFaceLens !== 'none' && (
-            <div className="flex items-center gap-2 mb-2 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-[#FFFC00]/30 shadow-lg">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <span>{AR_FILTERS.find((f) => f.id === activeFaceLens)?.icon || '✨'}</span>
-                <span>{AR_FILTERS.find((f) => f.id === activeFaceLens)?.name || 'Filter'}</span>
-              </span>
+        <footer className="absolute bottom-0 left-0 right-0 z-30 pb-3 sm:pb-5 pt-2 px-3 sm:px-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex flex-col items-center">
+          {/* Header Bar of Controls: Tabs + Active Lens Badge + Categories/Search */}
+          <div className="w-full max-w-xl mx-auto flex items-center justify-between gap-2 mb-2 px-1">
+            {/* Mode Switcher: AR Lenses vs Color LUTs */}
+            <div className="flex items-center gap-1 p-0.5 rounded-full bg-black/65 backdrop-blur-md border border-white/10 flex-shrink-0">
               <button
-                onClick={() => {
-                  playFilterPopSound();
-                  setActiveFaceLens('none');
-                }}
-                className="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 flex items-center justify-center text-white text-[10px]"
-                title="Remove Filter"
+                onClick={() => setLensMode('ar_lenses')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                  lensMode === 'ar_lenses'
+                    ? 'bg-[#FFFC00] text-black shadow-md'
+                    : 'text-white/60 hover:text-white'
+                }`}
               >
-                ✕
+                <Smile className="w-3.5 h-3.5" />
+                <span>AR Lenses</span>
+              </button>
+              <button
+                onClick={() => setLensMode('filters')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                  lensMode === 'filters'
+                    ? 'bg-[#FFFC00] text-black shadow-md'
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Color LUTs</span>
               </button>
             </div>
-          )}
 
-          {/* Mode Tabs: AR Lenses vs Color Shaders */}
-          <div className="flex items-center gap-2 mb-2 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-md border border-white/10">
-            <button
-              onClick={() => setLensMode('ar_lenses')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
-                lensMode === 'ar_lenses'
-                  ? 'bg-[#FFFC00] text-black shadow-md'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <Smile className="w-3.5 h-3.5" />
-              <span>AR Lenses (10)</span>
-            </button>
-            <button
-              onClick={() => setLensMode('filters')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
-                lensMode === 'filters'
-                  ? 'bg-[#FFFC00] text-black shadow-md'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Color LUTs (10)</span>
-            </button>
+            {/* Active Lens / Filter Chip with Dismiss */}
+            {activeFaceLens !== 'none' && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFFC00]/20 border border-[#FFFC00]/40 text-xs font-bold text-white shadow-sm flex-shrink-0">
+                <span>{AR_FILTERS.find((f) => f.id === activeFaceLens)?.icon}</span>
+                <span className="text-[11px] text-[#FFFC00] font-bold truncate max-w-[90px]">
+                  {AR_FILTERS.find((f) => f.id === activeFaceLens)?.name}
+                </span>
+                <button
+                  onClick={() => {
+                    playFilterPopSound();
+                    setActiveFaceLens('none');
+                  }}
+                  className="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 flex items-center justify-center text-white text-[10px]"
+                  title="Remove Filter"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* Category / Search Toggle */}
+            {lensMode === 'ar_lenses' && (
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+                <button
+                  onClick={() => setShowFilterSearch((p) => !p)}
+                  className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+                    showFilterSearch || filterSearchQuery
+                      ? 'bg-[#FFFC00] text-black'
+                      : 'bg-white/10 text-white/70 hover:text-white'
+                  }`}
+                  title="Search Filters"
+                >
+                  <Search className="w-3 h-3" />
+                </button>
+                {!showFilterSearch && (
+                  <div className="hidden sm:flex items-center gap-1">
+                    {FILTER_CATEGORIES.slice(0, 4).map((cat) => {
+                      const isSelected = selectedCategory === cat;
+                      return (
+                        <button
+                          key={cat}
+                          onClick={() => setSelectedCategory(cat)}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-tight whitespace-nowrap transition-all ${
+                            isSelected
+                              ? 'bg-white text-black shadow-sm'
+                              : 'bg-white/10 text-white/60 hover:text-white'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* AR Lenses Categories & Search Strip */}
-          {lensMode === 'ar_lenses' && (
-            <div className="w-full max-w-xl mx-auto flex items-center gap-2 px-3 mb-2">
-              <button
-                onClick={() => setShowFilterSearch((p) => !p)}
-                className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
-                  showFilterSearch || filterSearchQuery
-                    ? 'bg-[#FFFC00] text-black'
-                    : 'bg-white/10 text-white/70 hover:text-white'
-                }`}
-                title="Search Filters"
-              >
-                <Search className="w-3.5 h-3.5" />
-              </button>
-
-              {showFilterSearch ? (
-                <div className="flex-1 relative flex items-center">
-                  <input
-                    type="text"
-                    autoFocus
-                    placeholder="Search filters (e.g. cat, crown, fire)..."
-                    value={filterSearchQuery}
-                    onChange={(e) => setFilterSearchQuery(e.target.value)}
-                    className="w-full px-3 py-1 text-xs rounded-full bg-black/70 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-[#FFFC00]"
-                  />
-                  {filterSearchQuery && (
-                    <button
-                      onClick={() => setFilterSearchQuery('')}
-                      className="absolute right-2 text-white/50 hover:text-white text-xs"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                  {FILTER_CATEGORIES.map((cat) => {
-                    const isSelected = selectedCategory === cat;
-                    return (
-                      <button
-                        key={cat}
-                        onClick={() => setSelectedCategory(cat)}
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-tight whitespace-nowrap transition-all ${
-                          isSelected
-                            ? 'bg-white text-black shadow-sm'
-                            : 'bg-white/10 text-white/60 hover:text-white hover:bg-white/15'
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    );
-                  })}
-                </div>
+          {/* Search bar input if open */}
+          {lensMode === 'ar_lenses' && showFilterSearch && (
+            <div className="w-full max-w-xl mx-auto relative flex items-center mb-2 px-1">
+              <input
+                type="text"
+                autoFocus
+                placeholder="Search lenses (e.g. cat, crown, fire)..."
+                value={filterSearchQuery}
+                onChange={(e) => setFilterSearchQuery(e.target.value)}
+                className="w-full px-3 py-1 text-xs rounded-full bg-black/75 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-[#FFFC00]"
+              />
+              {filterSearchQuery && (
+                <button
+                  onClick={() => setFilterSearchQuery('')}
+                  className="absolute right-3 text-white/50 hover:text-white text-xs"
+                >
+                  ✕
+                </button>
               )}
             </div>
           )}

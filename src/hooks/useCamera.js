@@ -325,67 +325,40 @@ export function useCamera() {
       let stream = null;
       let lastErr = null;
 
-      // Strategy 1: Ideal HD video with requested facingMode & audio (if unmuted)
+      // Strategy 1: Fast, reliable camera stream (standard 720p/1080p without rigid min bounds)
       try {
         const constraints = {
           video: {
-            facingMode: { ideal: targetFacing },
-            width: { ideal: 1920, min: 640 },
-            height: { ideal: 1080, min: 480 },
+            facingMode: targetFacing ? { ideal: targetFacing } : 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
           },
-          audio: !isMuted,
         };
         stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (err1) {
         lastErr = err1;
-        console.warn('Strategy 1 (HD + Audio) failed, evaluating fallback:', err1);
+        console.warn('Strategy 1 (Ideal 720p) failed, trying unconstrained facingMode:', err1);
 
-        // Strategy 2: If microphone was locked or resolution overconstrained, try Video-Only with ideal facingMode
-        if (
-          err1.name === 'NotReadableError' ||
-          err1.name === 'TrackStartError' ||
-          err1.name === 'OverconstrainedError' ||
-          !isMuted
-        ) {
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: {
-                facingMode: { ideal: targetFacing },
-                width: { ideal: 1280, min: 480 },
-                height: { ideal: 720, min: 360 },
-              },
-              audio: false,
-            });
-          } catch (err2) {
-            lastErr = err2;
-            console.warn('Strategy 2 (Standard Video-Only) failed:', err2);
-          }
-        }
-      }
-
-      // Strategy 3: Unconstrained resolution with facingMode, video only
-      if (!stream) {
+        // Strategy 2: Target facingMode unconstrained
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: targetFacing },
-            audio: false,
           });
-        } catch (err3) {
-          lastErr = err3;
-          console.warn('Strategy 3 (Unconstrained facingMode) failed:', err3);
+        } catch (err2) {
+          lastErr = err2;
+          console.warn('Strategy 2 (Unconstrained facingMode) failed:', err2);
         }
       }
 
-      // Strategy 4: Bare-minimum fallback to any available video input device (video: true)
+      // Strategy 3: Bare-minimum fallback to any available video input device (video: true)
       if (!stream) {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: true,
-            audio: false,
           });
-        } catch (err4) {
-          lastErr = err4;
-          console.warn('Strategy 4 (Bare video: true) failed:', err4);
+        } catch (err3) {
+          lastErr = err3;
+          console.warn('Strategy 3 (Bare video: true) failed:', err3);
         }
       }
 
@@ -411,21 +384,6 @@ export function useCamera() {
       // Attach stream to live video element
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-
-        // Wait for video metadata to be loaded for smooth transition
-        await new Promise((resolve) => {
-          const video = videoRef.current;
-          if (!video || video.readyState >= 2) {
-            resolve();
-            return;
-          }
-          const onLoaded = () => {
-            video.removeEventListener('loadedmetadata', onLoaded);
-            resolve();
-          };
-          video.addEventListener('loadedmetadata', onLoaded);
-          setTimeout(onLoaded, 600); // 600ms safety timeout
-        });
 
         // Safely start playback
         try {

@@ -78,15 +78,9 @@ export function useFaceTracking(videoRef, isEnabled = true) {
   // Coordinate smoothing helper (exponential moving average for jitter-free tracking)
   const updateSmoothedFaces = useCallback((rawFaces) => {
     if (!rawFaces || rawFaces.length === 0) {
-      // Gentle center anchor fallback
-      const fallbackFace = {
-        x: 0.28,
-        y: 0.20,
-        width: 0.44,
-        height: 0.48,
-      };
-      smoothedFacesRef.current = [fallbackFace];
-      setFaces([fallbackFace]);
+      smoothedFacesRef.current = [];
+      setFaces([]);
+      setIsFaceDetected(false);
       return;
     }
 
@@ -157,9 +151,9 @@ export function useFaceTracking(videoRef, isEnabled = true) {
             updateSmoothedFaces([]);
           }
         } else {
-          // Strategy C: High-fidelity center-face tracking anchor
+          // Waiting for detector model or camera frame
           updateSmoothedFaces([]);
-          setIsFaceDetected(true);
+          setIsFaceDetected(false);
         }
       }
 

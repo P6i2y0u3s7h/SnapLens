@@ -931,28 +931,26 @@ export function renderArFilterOnCanvas(
   animTime = performance.now() / 1000
 ) {
   if (!filterId || filterId === 'none') return;
+  if (!faces || faces.length === 0) return; // Only render AR overlays when a face is present
 
-  // If no face is detected yet, provide default centered anchor so the user sees the effect immediately
-  const effectiveFaces =
-    faces && faces.length > 0
-      ? faces
-      : [
-          {
-            x: 0.28,
-            y: 0.20,
-            width: 0.44,
-            height: 0.48,
-          },
-        ];
-
-  effectiveFaces.forEach((face) => {
+  faces.forEach((face) => {
     // Coordinate mapping taking selfie mirroring into account
-    const fx = facingMode === 'user' ? (1 - face.x - face.width) * canvasWidth : face.x * canvasWidth;
-    const fy = face.y * canvasHeight;
-    const fw = face.width * canvasWidth;
-    const fh = face.height * canvasHeight;
-    const centerX = fx + fw / 2;
-    const centerY = fy + fh / 2;
+    const rawFx = facingMode === 'user' ? (1 - face.x - face.width) * canvasWidth : face.x * canvasWidth;
+    const rawFy = face.y * canvasHeight;
+    const rawFw = face.width * canvasWidth;
+    const rawFh = face.height * canvasHeight;
+
+    // Normalizing face proportions:
+    // A natural human face's width is around 0.72 - 0.85 of its height.
+    // On widescreen displays (e.g. 16:9 or 21:9), rawFw would stretch features horizontally across the entire screen.
+    // We constrain the width to natural facial proportions centered on the detected face.
+    const maxNaturalWidth = rawFh * 0.85;
+    const fw = Math.min(rawFw, maxNaturalWidth);
+    const fh = rawFh;
+    const centerX = rawFx + rawFw / 2;
+    const centerY = rawFy + rawFh / 2;
+    const fx = centerX - fw / 2;
+    const fy = rawFy;
 
     const geom = { centerX, centerY, fx, fy, fw, fh };
 
