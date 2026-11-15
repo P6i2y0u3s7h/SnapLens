@@ -152,20 +152,6 @@ export default function AuthModal() {
               <ArrowRight className="w-4 h-4 text-black" />
             </button>
           </form>
-
-          {/* Quick Demo Credentials helper */}
-          <div className="mt-4 pt-3 border-t border-white/10 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setEmail('alex@snaplens.app');
-                setPassword('SnapLens2026!');
-              }}
-              className="text-[11px] text-[#FFFC00] hover:underline"
-            >
-              Fill Demo Credentials
-            </button>
-          </div>
         </motion.div>
       </div>
     </AnimatePresence>
