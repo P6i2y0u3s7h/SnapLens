@@ -102,7 +102,7 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white overflow-x-hidden pb-24">
+    <div className="min-h-dvh bg-[#0A0A0F] text-white overflow-x-hidden pb-24">
       <Header />
 
       {/* Hero Section */}

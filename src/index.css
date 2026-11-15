@@ -244,27 +244,45 @@
   height: 6px;
 }
 
-/* Safe area padding utilities for mobile edge-to-edge screens */
+/* Safe area padding utilities for mobile edge-to-edge screens (OnePlus Nord & Android 20:9 displays) */
 .pt-safe {
-  padding-top: max(12px, env(safe-area-inset-top));
+  padding-top: max(14px, env(safe-area-inset-top, 14px));
 }
-.pb-safe {
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
+.pb-safe,
+.safe-bottom {
+  padding-bottom: max(14px, env(safe-area-inset-bottom, 14px));
 }
 .pl-safe {
-  padding-left: max(8px, env(safe-area-inset-left));
+  padding-left: max(10px, env(safe-area-inset-left, 10px));
 }
 .pr-safe {
-  padding-right: max(8px, env(safe-area-inset-right));
+  padding-right: max(10px, env(safe-area-inset-right, 10px));
 }
 
-/* Touch & Drag responsiveness */
+/* Dynamic Viewport Height for Android Chrome */
+.h-dvh {
+  height: 100vh;
+  height: 100dvh;
+}
+.min-h-dvh {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Touch & Drag responsiveness & 120Hz smoothness */
 .touch-scroll-x {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
   overscroll-behavior-x: contain;
   touch-action: pan-x;
+  transform: translateZ(0);
+}
+
+/* Prevent accidental pull-to-refresh on interactive camera/editor canvases */
+.no-pull-refresh {
+  overscroll-behavior-y: contain;
+  overscroll-behavior-x: contain;
 }
 
 

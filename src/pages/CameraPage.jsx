@@ -789,7 +789,7 @@ export default function CameraPage() {
   const activeFace = facesRef.current && facesRef.current.length > 0 ? facesRef.current[0] : null;
 
   return (
-    <div className="fixed inset-0 bg-black text-white overflow-hidden select-none touch-none">
+    <div className="fixed inset-0 h-dvh w-full bg-black text-white overflow-hidden select-none touch-none no-pull-refresh">
       {/* Recording Top Progress Bar & Vignette */}
       {isRecording && (
         <>

@@ -214,7 +214,7 @@ export default function ChatPage() {
   }, [friends]);
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white flex flex-col pb-20 sm:pb-24">
+    <div className="min-h-dvh bg-[#0A0A0F] text-white flex flex-col pb-20 sm:pb-24">
       <Header />
 
       {/* Hidden Media Input */}

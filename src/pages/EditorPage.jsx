@@ -679,7 +679,7 @@ export default function EditorPage() {
   const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId);
 
   return (
-    <div className="fixed inset-0 bg-[#0A0A0F] text-white flex flex-col justify-between overflow-hidden select-none">
+    <div className="fixed inset-0 h-dvh w-full bg-[#0A0A0F] text-white flex flex-col justify-between overflow-hidden select-none no-pull-refresh">
       {/* ── TOP ACTION HEADER BAR ── */}
       <header className="z-30 h-14 sm:h-16 px-2 sm:px-4 flex items-center justify-between bg-[#0A0A0F]/90 backdrop-blur-md border-b border-white/10 gap-1 sm:gap-2 min-w-0 w-full overflow-x-auto no-scrollbar touch-scroll-x pt-safe">
         {/* Left: Retake Button */}

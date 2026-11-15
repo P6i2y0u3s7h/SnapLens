@@ -122,7 +122,7 @@ export default function StoriesPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white pb-28">
+    <div className="min-h-dvh bg-[#0A0A0F] text-white pb-28">
       <Header />
 
       {/* Hidden File Input for uploading media directly to stories */}

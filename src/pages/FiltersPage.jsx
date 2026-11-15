@@ -24,7 +24,7 @@ export default function FiltersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white pb-28">
+    <div className="min-h-dvh bg-[#0A0A0F] text-white pb-28">
       <Header />
 
       <main className="max-w-7xl mx-auto pt-24 px-4 sm:px-6">
