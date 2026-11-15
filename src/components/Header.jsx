@@ -105,6 +105,15 @@ export default function Header() {
           >
             <Settings className="w-4 h-4" />
           </button>
+
+          {/* Shown on desktop website, hidden on mobile */}
+          <button
+            onClick={() => handleNav('/camera')}
+            className="hidden md:flex btn-snap px-4 py-2 text-xs font-bold items-center gap-2 group shadow-md shadow-[#FFFC00]/20"
+          >
+            <Camera className="w-4 h-4 text-black group-hover:scale-110 transition-transform" />
+            <span>Camera</span>
+          </button>
         </div>
       </div>
     </header>
