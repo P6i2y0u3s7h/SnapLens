@@ -556,31 +556,53 @@ export default function ChatPage() {
                           <div
                             onClick={() => handleOpenSnap(activeFriend.id, msg)}
                             className={`cursor-pointer rounded-2xl p-3 flex items-center gap-3 transition-all duration-200 max-w-[280px] sm:max-w-xs shadow-lg ${
-                              msg.opened
+                              isMe
+                                ? msg.opened
+                                  ? 'bg-white/5 border border-white/10 opacity-70'
+                                  : 'bg-[#FFFC00]/15 border border-[#FFFC00]/30 hover:border-[#FFFC00]/50 shadow-[#FFFC00]/5'
+                                : msg.opened
                                 ? 'bg-white/5 border border-white/10 opacity-70'
                                 : 'bg-gradient-to-r from-red-500/25 via-pink-500/20 to-purple-500/25 border border-red-500/40 hover:scale-105 active:scale-95 shadow-red-500/10'
                             }`}
                           >
                             <div
                               className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                                msg.opened
+                                isMe
+                                  ? msg.opened
+                                    ? 'bg-white/10 text-white/50'
+                                    : 'bg-[#FFFC00] text-black shadow-md shadow-[#FFFC00]/25'
+                                  : msg.opened
                                   ? 'bg-white/10 text-white/50'
                                   : 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30'
                               }`}
                             >
-                              {msg.opened ? (
-                                <Eye className="w-5 h-5" />
+                              {isMe ? (
+                                msg.opened ? <Eye className="w-5 h-5" /> : <Send className="w-4 h-4 ml-0.5" />
                               ) : (
-                                <Play className="w-5 h-5 fill-current ml-0.5" />
+                                msg.opened ? <Eye className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current ml-0.5" />
                               )}
                             </div>
 
                             <div className="min-w-0">
                               <span className="text-xs font-bold text-white block truncate">
-                                {msg.opened ? 'Snap Viewed' : 'New Disappearing Snap'}
+                                {isMe
+                                  ? msg.opened
+                                    ? 'Snap Opened'
+                                    : msg.mediaType === 'video'
+                                    ? 'Video Snap Delivered'
+                                    : 'Photo Snap Delivered'
+                                  : msg.opened
+                                  ? 'Snap Viewed'
+                                  : 'New Disappearing Snap'}
                               </span>
                               <span className="text-[11px] text-white/60 block truncate">
-                                {msg.opened ? 'Opened • Disappeared' : 'Tap to view (Timed) 🔥'}
+                                {isMe
+                                  ? msg.opened
+                                    ? 'Opened by ' + activeFriend.name.split(' ')[0]
+                                    : 'Delivered • Tap to preview'
+                                  : msg.opened
+                                  ? 'Opened • Disappeared'
+                                  : 'Tap to view (Timed) 🔥'}
                               </span>
                             </div>
                           </div>

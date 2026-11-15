@@ -552,7 +552,7 @@ export default function CameraPage() {
 
     if (location.state?.sendToFriendId) {
       sendSnapToFriend(location.state.sendToFriendId, { snapUrl: capturedPhotoUrl, type: 'photo' });
-      navigate('/chat');
+      navigate('/chat', { state: { activeFriendId: location.state.sendToFriendId } });
       return;
     }
 
@@ -657,7 +657,7 @@ export default function CameraPage() {
         type: 'video',
         caption: videoCaption,
       });
-      navigate('/chat');
+      navigate('/chat', { state: { activeFriendId: location.state.sendToFriendId } });
       return;
     }
 

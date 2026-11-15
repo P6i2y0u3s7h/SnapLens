@@ -660,7 +660,7 @@ export default function EditorPage() {
     const friend = friends.find((f) => f.id === friendId);
     toast.success(`Snap sent to ${friend ? friend.name : 'friend'}!`, { icon: '🚀' });
     setShowSendFriendsModal(false);
-    navigate('/chat');
+    navigate('/chat', { state: { activeFriendId: friendId } });
   };
 
   // Selected Overlay item helper
@@ -707,11 +707,11 @@ export default function EditorPage() {
           </button>
         </div>
 
-        {/* Right: Story, Send, Save Actions */}
+        {/* Right: Quick actions (Story, Download icon, Send pill) */}
         <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             onClick={handleAddToStory}
-            className="glass-pill px-3 py-1.5 text-xs font-bold text-white hover:border-[#FFFC00]/40 flex items-center gap-1.5 hidden xs:flex"
+            className="glass-pill px-2.5 sm:px-3 py-1.5 text-xs font-bold text-white hover:border-[#FFFC00]/40 flex items-center gap-1 hidden xs:flex"
             title="Add to My Story"
           >
             <PlusCircle className="w-3.5 h-3.5 text-[#FFFC00]" />
@@ -719,21 +719,20 @@ export default function EditorPage() {
           </button>
 
           <button
-            onClick={() => setShowSendFriendsModal(true)}
-            className="glass-pill px-3 py-1.5 text-xs font-bold text-white hover:border-[#FFFC00]/40 flex items-center gap-1.5"
-            title="Send to Friend"
+            onClick={handleDownload}
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl glass-pill flex items-center justify-center text-white/80 hover:text-white hover:border-[#FFFC00]/40 active:scale-95 transition-transform"
+            title="Download Snap"
           >
-            <Send className="w-3.5 h-3.5 text-[#FFFC00]" />
-            <span>Send</span>
+            <Download className="w-3.5 h-3.5 text-[#FFFC00]" />
           </button>
 
           <button
-            onClick={handleDownload}
-            className="btn-snap px-3.5 sm:px-4 py-1.5 sm:py-2 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-[#FFFC00]/20 active:scale-95 transition-transform"
-            title="Download Snap"
+            onClick={() => setShowSendFriendsModal(true)}
+            className="btn-snap px-3 sm:px-4 py-1.5 text-xs font-bold text-black flex items-center gap-1.5 shadow-md shadow-[#FFFC00]/20 active:scale-95 transition-transform"
+            title="Send to Friend"
           >
-            <Download className="w-3.5 h-3.5 text-black" />
-            <span>Download</span>
+            <Send className="w-3.5 h-3.5 text-black" />
+            <span>Send</span>
           </button>
         </div>
       </header>
@@ -1524,9 +1523,9 @@ export default function EditorPage() {
       </main>
 
       {/* ── BOTTOM FILTER CAROUSEL & ACTIONS BAR ── */}
-      <footer className="z-30 bg-[#0A0A0F]/90 backdrop-blur-md border-t border-white/8 p-3 sm:p-4">
+      <footer className="z-30 bg-[#0A0A0F]/90 backdrop-blur-md border-t border-white/8 p-3 sm:p-4 pb-safe">
         {/* 10 Real-Time Filter Shaders Carousel */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-xl mx-auto pb-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar touch-scroll-x max-w-xl mx-auto pb-2">
           {FILTERS.map((f) => {
             const isSelected = selectedFilter.id === f.id;
             return (
@@ -1549,23 +1548,31 @@ export default function EditorPage() {
           })}
         </div>
 
-        {/* Quick Save & Export Actions Bar */}
-        <div className="flex items-center justify-between max-w-md mx-auto pt-2">
+        {/* Quick Save, Story & Send Actions Bar */}
+        <div className="flex items-center justify-between max-w-md mx-auto pt-2 gap-2">
           <button
             onClick={handleSaveToMemories}
             disabled={isExporting}
-            className="glass-pill px-4 py-2 rounded-2xl text-xs font-bold text-white flex items-center gap-2 hover:bg-white/15 active:scale-95 transition-transform"
+            className="glass-pill px-3.5 sm:px-4 py-2.5 rounded-2xl text-xs font-bold text-white flex items-center gap-2 hover:bg-white/15 active:scale-95 transition-transform flex-shrink-0"
           >
             <Save className="w-4 h-4 text-[#FFFC00]" />
-            <span>Save to Memories</span>
+            <span>Save</span>
           </button>
 
           <button
-            onClick={handleDownload}
-            className="btn-snap px-6 py-2 rounded-2xl text-xs font-bold text-black flex items-center gap-2 shadow-lg shadow-[#FFFC00]/25 active:scale-95 transition-transform"
+            onClick={handleAddToStory}
+            className="glass-pill px-3.5 sm:px-4 py-2.5 rounded-2xl text-xs font-bold text-white flex items-center gap-1.5 hover:border-[#FFFC00]/40 active:scale-95 transition-transform flex-shrink-0"
           >
-            <Download className="w-4 h-4 text-black" />
-            <span>Export & Download</span>
+            <PlusCircle className="w-4 h-4 text-[#FFFC00]" />
+            <span>+ Story</span>
+          </button>
+
+          <button
+            onClick={() => setShowSendFriendsModal(true)}
+            className="btn-snap px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-bold text-black flex items-center gap-2 shadow-lg shadow-[#FFFC00]/25 active:scale-95 transition-transform flex-1 justify-center max-w-[190px]"
+          >
+            <Send className="w-4 h-4 text-black" />
+            <span>Send To &gt;</span>
           </button>
         </div>
       </footer>
