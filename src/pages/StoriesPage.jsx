@@ -55,8 +55,11 @@ export default function StoriesPage() {
   };
 
   const handleOpenFriendStory = (story) => {
-    markStoryAsSeen(story.id);
     setActiveStoryGroup(story);
+  };
+
+  const handleStoryViewed = (storyId, friendId) => {
+    markStoryAsSeen(storyId, friendId);
   };
 
   // Direct file upload to story (photo or video)
@@ -272,7 +275,7 @@ export default function StoriesPage() {
                   className={`w-18 h-18 p-[3px] rounded-full transition-transform duration-300 group-hover:scale-110 active:scale-95 ${
                     friend.hasUnseen
                       ? 'snap-gradient shadow-lg shadow-[#FFFC00]/25'
-                      : 'bg-white/20'
+                      : 'border-2 border-white/20 bg-white/5'
                   }`}
                 >
                   <div className="w-16 h-16 rounded-full bg-[#0E0E18] p-0.5 overflow-hidden">
@@ -284,23 +287,50 @@ export default function StoriesPage() {
                   </div>
                 </div>
 
-                <span
-                  onClick={(e) => {
-                    if (friend.user?.uid || friend.id) {
-                      e.stopPropagation();
-                      navigate(`/user/${friend.user?.uid || friend.id}`);
-                    }
-                  }}
-                  className="text-xs font-semibold text-white/80 hover:text-[#FFFC00] transition-colors truncate max-w-full text-center hover:underline"
-                  title="View Profile"
-                >
-                  {friend.user.name.split(' ')[0]}
-                </span>
+                <div className="w-full text-center">
+                  <span
+                    onClick={(e) => {
+                      if (friend.user?.uid || friend.id) {
+                        e.stopPropagation();
+                        navigate(`/user/${friend.user?.uid || friend.id}`);
+                      }
+                    }}
+                    className="text-xs font-semibold text-white/80 hover:text-[#FFFC00] transition-colors truncate block max-w-full hover:underline"
+                    title={`View @${friend.user.handle || 'user'}`}
+                  >
+                    {friend.user.name.split(' ')[0]}
+                  </span>
+                  {friend.user?.handle && (
+                    <span className="text-[10px] text-white/40 block truncate font-mono -mt-0.5">
+                      @{friend.user.handle.replace(/^@/, '')}
+                    </span>
+                  )}
+                </div>
                 <span className="text-[10px] text-white/40 -mt-1 font-mono">
                   {friend.lastUpdated}
                 </span>
               </div>
             ))}
+
+            {friendStories.length === 0 && (
+              <div className="py-6 px-5 rounded-2xl bg-white/5 border border-white/10 text-center w-full flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3 text-left">
+                  <div className="w-10 h-10 rounded-full bg-[#FFFC00]/10 border border-[#FFFC00]/20 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-5 h-5 text-[#FFFC00]" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">No Active Friend Stories</h4>
+                    <p className="text-[11px] text-white/50">When your accepted friends post a snap, their 24h stories will appear here.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => navigate('/add-friends')}
+                  className="glass-pill px-4 py-2 text-xs font-bold text-[#FFFC00] hover:border-[#FFFC00]/40 flex-shrink-0"
+                >
+                  Find Friends
+                </button>
+              </div>
+            )}
           </div>
         </section>
 
@@ -448,7 +478,21 @@ export default function StoriesPage() {
           <StoryViewerModal
             storyGroup={activeStoryGroup}
             onClose={() => setActiveStoryGroup(null)}
-            onStoryComplete={() => setActiveStoryGroup(null)}
+            onStoryViewed={handleStoryViewed}
+            onStoryComplete={() => {
+              const currentFriendIndex = friendStories.findIndex(
+                (f) => f.id === activeStoryGroup.id
+              );
+              if (
+                currentFriendIndex !== -1 &&
+                currentFriendIndex < friendStories.length - 1
+              ) {
+                const nextFriend = friendStories[currentFriendIndex + 1];
+                setActiveStoryGroup(nextFriend);
+              } else {
+                setActiveStoryGroup(null);
+              }
+            }}
           />
         )}
       </AnimatePresence>

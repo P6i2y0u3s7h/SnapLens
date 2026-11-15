@@ -16,6 +16,8 @@ import {
   startAfter,
   onSnapshot,
   serverTimestamp,
+  arrayUnion,
+  increment,
 } from 'firebase/firestore';
 import {
   ref,
@@ -383,15 +385,17 @@ export async function uploadStoryToCloud({
       userHandle,
       userAvatar,
       url: downloadURL,
+      mediaUrl: downloadURL,
       storagePath,
-      type,
-      caption,
-      filter,
-      duration,
+      type: type === 'video' ? 'video' : 'photo',
+      caption: caption || '',
+      filter: filter || 'Original',
+      duration: typeof duration === 'number' && duration > 0 ? duration : (type === 'video' ? 10 : 5),
       createdAt: serverTimestamp(),
       createdAtMs: now,
       expiresAtMs: expiresAt,
       views: [],
+      viewsCount: 0,
     };
 
     const docRef = await addDoc(collection(db, 'stories'), storyDocData);
@@ -416,15 +420,86 @@ export async function uploadStoryToCloud({
       userHandle,
       userAvatar,
       url: dataUrl || (fileBlob ? URL.createObjectURL(fileBlob) : ''),
-      type,
-      caption,
-      filter,
-      duration,
+      type: type === 'video' ? 'video' : 'photo',
+      caption: caption || '',
+      filter: filter || 'Original',
+      duration: typeof duration === 'number' && duration > 0 ? duration : (type === 'video' ? 10 : 5),
       createdAt: new Date(now).toISOString(),
       expiresAt: new Date(expiresAt).toISOString(),
       time: 'Just now',
-      views: 0,
+      views: [],
+      viewsCount: 0,
     };
+  }
+}
+
+/**
+ * Real-time listener for active unexpired stories across Firestore (within 24 hours)
+ */
+export function subscribeToActiveStoriesInCloud(onUpdate) {
+  if (!isFirebaseConfigured || !db) {
+    if (onUpdate) onUpdate([]);
+    return () => {};
+  }
+
+  const minTimestamp = Date.now() - STORY_EXPIRATION_MS;
+  const storiesRef = collection(db, 'stories');
+
+  const processSnapshot = (snapshot) => {
+    const now = Date.now();
+    const stories = [];
+    snapshot.forEach((d) => {
+      const data = d.data();
+      const expiresAt = data.expiresAtMs || ((data.createdAtMs || now) + STORY_EXPIRATION_MS);
+      if (expiresAt > now) {
+        stories.push({
+          id: d.id,
+          cloudId: d.id,
+          ...data,
+          type: data.type === 'video' ? 'video' : 'photo',
+          views: Array.isArray(data.views) ? data.views : [],
+          viewsCount: typeof data.viewsCount === 'number' ? data.viewsCount : (Array.isArray(data.views) ? data.views.length : 0),
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAtMs || now).toISOString(),
+          expiresAt: new Date(expiresAt).toISOString(),
+        });
+      }
+    });
+
+    stories.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+    if (onUpdate) onUpdate(stories);
+  };
+
+  try {
+    const q = query(
+      storiesRef,
+      where('createdAtMs', '>=', minTimestamp),
+      orderBy('createdAtMs', 'desc')
+    );
+
+    return onSnapshot(
+      q,
+      processSnapshot,
+      (err) => {
+        console.warn('Real-time stories query fallback:', err);
+        try {
+          const fallbackQ = query(storiesRef, limit(100));
+          return onSnapshot(fallbackQ, processSnapshot, (e) => {
+            console.warn('Fallback stories listener error:', e);
+            if (onUpdate) onUpdate([]);
+          });
+        } catch {
+          if (onUpdate) onUpdate([]);
+        }
+      }
+    );
+  } catch (err) {
+    console.warn('Failed to start story listener:', err);
+    try {
+      const fallbackQ = query(storiesRef, limit(100));
+      return onSnapshot(fallbackQ, processSnapshot, () => {});
+    } catch {
+      return () => {};
+    }
   }
 }
 
@@ -434,30 +509,65 @@ export async function uploadStoryToCloud({
 export async function fetchActiveStoriesFromCloud() {
   if (!isFirebaseConfigured || !db) return [];
 
-  try {
-    const minTimestamp = Date.now() - STORY_EXPIRATION_MS;
-    const storiesRef = collection(db, 'stories');
-    const q = query(
-      storiesRef,
-      where('createdAtMs', '>=', minTimestamp),
-      orderBy('createdAtMs', 'desc')
-    );
+  const now = Date.now();
+  const minTimestamp = now - STORY_EXPIRATION_MS;
+  const storiesRef = collection(db, 'stories');
 
-    const snapshot = await getDocs(q);
+  try {
+    let snapshot;
+    try {
+      const q = query(
+        storiesRef,
+        where('createdAtMs', '>=', minTimestamp),
+        orderBy('createdAtMs', 'desc')
+      );
+      snapshot = await getDocs(q);
+    } catch (indexErr) {
+      console.warn('fetchActiveStoriesFromCloud query fallback:', indexErr);
+      const fallbackQ = query(storiesRef, limit(100));
+      snapshot = await getDocs(fallbackQ);
+    }
+
     const stories = [];
     snapshot.forEach((d) => {
       const data = d.data();
-      stories.push({
-        id: d.id,
-        cloudId: d.id,
-        ...data,
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAtMs || Date.now()).toISOString(),
-      });
+      const expiresAt = data.expiresAtMs || ((data.createdAtMs || now) + STORY_EXPIRATION_MS);
+      if (expiresAt > now) {
+        stories.push({
+          id: d.id,
+          cloudId: d.id,
+          ...data,
+          type: data.type === 'video' ? 'video' : 'photo',
+          views: Array.isArray(data.views) ? data.views : [],
+          viewsCount: typeof data.viewsCount === 'number' ? data.viewsCount : (Array.isArray(data.views) ? data.views.length : 0),
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAtMs || now).toISOString(),
+          expiresAt: new Date(expiresAt).toISOString(),
+        });
+      }
     });
+
+    stories.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
     return stories;
   } catch (err) {
-    console.warn('Failed to fetch cloud stories (will fallback to local):', err);
+    console.warn('Failed to fetch cloud stories:', err);
     return [];
+  }
+}
+
+/**
+ * Records that a user has viewed a specific story
+ */
+export async function markStoryViewedInCloud(storyId, viewerId) {
+  if (!isFirebaseConfigured || !db || !storyId || !viewerId) return;
+
+  try {
+    const storyRef = doc(db, 'stories', storyId);
+    await updateDoc(storyRef, {
+      views: arrayUnion(viewerId),
+      viewsCount: increment(1),
+    });
+  } catch (err) {
+    console.debug('markStoryViewedInCloud error:', err);
   }
 }
 
@@ -1699,6 +1809,8 @@ export async function fetchFriendProfileDataInCloud(targetUserId, currentUserId 
         activeStories.push({
           id: d.id,
           ...sData,
+          url: sData.url || sData.mediaUrl,
+          mediaUrl: sData.mediaUrl || sData.url,
         });
       }
     });

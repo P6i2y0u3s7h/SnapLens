@@ -110,6 +110,7 @@ export default function SendToModal({
         addSnapToMyStory({
           type: mediaType,
           url: mediaUrl || dataUrl,
+          fileBlob: fileBlob || null,
           caption: caption || '',
           duration: mediaType === 'video' ? 10 : 5,
         });

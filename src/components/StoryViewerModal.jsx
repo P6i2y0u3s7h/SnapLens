@@ -3,7 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Heart, Send, Sparkles, Volume2, VolumeX, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete }) {
+function formatStoryRelativeTime(timestamp) {
+  if (!timestamp) return 'Just now';
+  const timeMs = typeof timestamp === 'number' ? timestamp : new Date(timestamp).getTime();
+  const diffSec = Math.floor((Date.now() - timeMs) / 1000);
+
+  if (diffSec < 60) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return 'Today';
+}
+
+export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete, onStoryViewed }) {
   if (!storyGroup || !storyGroup.items || storyGroup.items.length === 0) return null;
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -11,9 +24,33 @@ export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete 
   const [isPaused, setIsPaused] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [isMuted, setIsMuted] = useState(false);
+  const videoRef = useRef(null);
 
   const currentItem = storyGroup.items[currentIndex] || storyGroup.items[0];
-  const DURATION_MS = currentItem.type === 'video' ? 10000 : 5000;
+  const DURATION_MS =
+    currentItem?.duration && currentItem.duration > 0
+      ? currentItem.duration * 1000
+      : currentItem?.type === 'video'
+        ? 10000
+        : 5000;
+
+  // Mark story as viewed as soon as it displays
+  useEffect(() => {
+    if (currentItem?.id && onStoryViewed) {
+      onStoryViewed(currentItem.id, storyGroup.id || storyGroup.user?.id);
+    }
+  }, [currentIndex, currentItem?.id, onStoryViewed, storyGroup.id, storyGroup.user?.id]);
+
+  // Video playback management on pause / play
+  useEffect(() => {
+    if (videoRef.current) {
+      if (isPaused) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  }, [isPaused, currentIndex]);
 
   // Auto-progress timer
   useEffect(() => {
@@ -83,6 +120,10 @@ export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete 
     });
   };
 
+  const timeLabel = currentItem?.createdAtMs
+    ? formatStoryRelativeTime(currentItem.createdAtMs)
+    : currentItem?.time || 'Today';
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -101,7 +142,7 @@ export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete 
             else if (idx === currentIndex) fillPercent = progress;
 
             return (
-              <div key={item.id} className="flex-1 h-1 rounded-full bg-white/25 overflow-hidden">
+              <div key={item.id || idx} className="flex-1 h-1 rounded-full bg-white/25 overflow-hidden">
                 <div
                   className="h-full bg-white transition-all duration-75"
                   style={{ width: `${fillPercent}%` }}
@@ -115,7 +156,7 @@ export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete 
         <div className="absolute top-6 left-4 right-4 z-30 flex items-center justify-between text-white">
           <div className="flex items-center gap-2.5">
             <img
-              src={storyGroup.user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'}
+              src={storyGroup.user?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${storyGroup.id || 'snap'}`}
               alt={storyGroup.user?.name || 'User'}
               className="w-9 h-9 rounded-full object-cover border-2 border-[#FFFC00]"
             />
@@ -125,10 +166,15 @@ export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete 
                   {storyGroup.user?.name || 'My Story'}
                 </h4>
                 <span className="text-[11px] text-white/70 font-medium">
-                  {currentItem.time || 'Today'}
+                  {timeLabel}
                 </span>
               </div>
-              {currentItem.filter && (
+              {storyGroup.user?.handle && (
+                <span className="text-[10px] text-white/50 font-mono block -mt-0.5">
+                  @{storyGroup.user.handle.replace(/^@/, '')}
+                </span>
+              )}
+              {currentItem?.filter && currentItem.filter !== 'Original' && (
                 <span className="text-[10px] text-[#FFFC00] flex items-center gap-1 drop-shadow-md">
                   <Sparkles className="w-2.5 h-2.5" />
                   <span>{currentItem.filter}</span>
@@ -138,7 +184,7 @@ export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete 
           </div>
 
           <div className="flex items-center gap-2">
-            {currentItem.type === 'video' && (
+            {currentItem?.type === 'video' && (
               <button
                 onClick={() => setIsMuted((p) => !p)}
                 className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white/80"
@@ -163,19 +209,26 @@ export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete 
           onTouchStart={() => setIsPaused(true)}
           onTouchEnd={() => setIsPaused(false)}
         >
-          {currentItem.type === 'video' ? (
+          {currentItem?.type === 'video' ? (
             <video
+              ref={videoRef}
               src={currentItem.url}
               autoPlay
               playsInline
               muted={isMuted}
               className="w-full h-full object-cover"
+              onError={() => {
+                toast.error('Unable to play video snap');
+              }}
             />
           ) : (
             <img
-              src={currentItem.url}
+              src={currentItem?.url}
               alt="Story snap"
               className="w-full h-full object-cover"
+              onError={(e) => {
+                e.target.src = 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80';
+              }}
             />
           )}
 
@@ -192,8 +245,8 @@ export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete 
           />
 
           {/* Story Caption overlay */}
-          {currentItem.caption && (
-            <div className="absolute bottom-24 left-4 right-4 z-20 text-center">
+          {currentItem?.caption && (
+            <div className="absolute bottom-24 left-4 right-4 z-20 text-center pointer-events-none">
               <span className="inline-block px-4 py-2 rounded-2xl bg-black/60 backdrop-blur-md border border-white/15 text-sm sm:text-base font-bold text-white drop-shadow-lg">
                 {currentItem.caption}
               </span>
@@ -239,4 +292,3 @@ export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete 
     </motion.div>
   );
 }
-

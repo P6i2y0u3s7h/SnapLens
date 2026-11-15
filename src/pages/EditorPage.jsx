@@ -652,6 +652,7 @@ export default function EditorPage() {
     addSnapToMyStory({
       type: isVideo ? 'video' : 'photo',
       url: finalUrl,
+      fileBlob: isVideo ? blob : null,
       caption,
       filter: selectedFilter.name,
       duration: isVideo ? 10 : 5,

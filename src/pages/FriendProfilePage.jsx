@@ -564,12 +564,12 @@ export default function FriendProfilePage() {
                 >
                   {story.type === 'video' ? (
                     <video
-                      src={story.mediaUrl}
+                      src={story.url || story.mediaUrl}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />
                   ) : (
                     <img
-                      src={story.mediaUrl}
+                      src={story.url || story.mediaUrl}
                       alt="Story"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />
