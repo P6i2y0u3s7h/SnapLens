@@ -669,83 +669,75 @@ export default function EditorPage() {
   return (
     <div className="fixed inset-0 bg-[#0A0A0F] text-white flex flex-col justify-between overflow-hidden select-none">
       {/* ── TOP ACTION HEADER BAR ── */}
-      <header className="z-30 h-14 sm:h-16 px-3 sm:px-5 flex items-center justify-between bg-[#0A0A0F]/85 backdrop-blur-md border-b border-white/8">
+      <header className="z-30 h-14 sm:h-16 px-2 sm:px-4 flex items-center justify-between bg-[#0A0A0F]/90 backdrop-blur-md border-b border-white/10 gap-1 sm:gap-2 min-w-0 w-full overflow-x-auto no-scrollbar touch-scroll-x pt-safe">
         {/* Left: Retake Button */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-shrink-0">
           <button
             onClick={() => navigate('/camera')}
-            className="glass-pill px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-bold flex items-center gap-1.5 hover:bg-white/15 text-white active:scale-95 transition-transform"
+            className="glass-pill h-9 sm:h-10 px-2 sm:px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 hover:bg-white/15 text-white active:scale-95 transition-all flex-shrink-0"
             title="Retake Photo"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-[#FFFC00]" />
-            <span>Retake</span>
+            <RotateCcw className="w-3.5 h-3.5 text-[#FFFC00] flex-shrink-0" />
+            <span className="hidden min-[360px]:inline">Retake</span>
           </button>
         </div>
 
         {/* Center: Undo / Redo / Rotate 90° */}
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
           <button
             onClick={handleUndo}
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl glass-pill flex items-center justify-center text-white/70 hover:text-white active:scale-95 transition-transform"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl glass-pill flex items-center justify-center text-white/75 hover:text-white active:scale-95 transition-all"
             title="Undo"
           >
-            <Undo2 className="w-4 h-4" />
+            <Undo2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
           <button
             onClick={handleRedo}
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl glass-pill flex items-center justify-center text-white/70 hover:text-white active:scale-95 transition-transform"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl glass-pill flex items-center justify-center text-white/75 hover:text-white active:scale-95 transition-all"
             title="Redo"
           >
-            <Redo2 className="w-4 h-4" />
+            <Redo2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
           <button
             onClick={handleRotate90}
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl glass-pill flex items-center justify-center text-white/70 hover:text-white active:scale-95 transition-transform"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl glass-pill flex items-center justify-center text-white/75 hover:text-white active:scale-95 transition-all"
             title="Rotate 90°"
           >
-            <RotateCw className="w-4 h-4" />
+            <RotateCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
         </div>
 
-        {/* Right: Quick actions (Story, Download icon, Send pill) */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Right: Send & Download (All buttons fit on screen with no overflow) */}
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
           <button
-            onClick={handleAddToStory}
-            className="glass-pill px-2.5 sm:px-3 py-1.5 text-xs font-bold text-white hover:border-[#FFFC00]/40 flex items-center gap-1 hidden xs:flex"
-            title="Add to My Story"
+            onClick={() => setShowSendFriendsModal(true)}
+            className="glass-pill h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl text-xs font-bold text-white hover:border-[#FFFC00]/40 flex items-center gap-1.5 active:scale-95 transition-all"
+            title="Send to Friend"
           >
-            <PlusCircle className="w-3.5 h-3.5 text-[#FFFC00]" />
-            <span>Story</span>
+            <Send className="w-3.5 h-3.5 text-[#FFFC00] flex-shrink-0" />
+            <span>Send</span>
           </button>
 
           <button
             onClick={handleDownload}
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl glass-pill flex items-center justify-center text-white/80 hover:text-white hover:border-[#FFFC00]/40 active:scale-95 transition-transform"
+            className="btn-snap h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl text-xs font-bold text-black flex items-center gap-1.5 shadow-md shadow-[#FFFC00]/20 active:scale-95 transition-all"
             title="Download Snap"
           >
-            <Download className="w-3.5 h-3.5 text-[#FFFC00]" />
-          </button>
-
-          <button
-            onClick={() => setShowSendFriendsModal(true)}
-            className="btn-snap px-3 sm:px-4 py-1.5 text-xs font-bold text-black flex items-center gap-1.5 shadow-md shadow-[#FFFC00]/20 active:scale-95 transition-transform"
-            title="Send to Friend"
-          >
-            <Send className="w-3.5 h-3.5 text-black" />
-            <span>Send</span>
+            <Download className="w-3.5 h-3.5 text-black flex-shrink-0" />
+            <span>Download</span>
           </button>
         </div>
       </header>
 
       {/* ── MAIN WORKSPACE / CANVAS VIEWPORT ── */}
-      <main className="relative flex-1 flex items-center justify-center p-2 sm:p-4 overflow-hidden bg-black/55">
+      <main className="relative flex-1 min-h-0 w-full flex items-center justify-center p-2 sm:p-4 overflow-hidden bg-[#07070B] select-none">
         <div
           id="editor-canvas-container"
-          className="relative max-w-full max-h-[72vh] rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex items-center justify-center"
+          className="relative max-w-full max-h-full rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex items-center justify-center bg-black/40"
         >
           {/* Video Player or Photo Drawing Canvas */}
           {isVideo ? (
-            <div className="relative max-h-[72vh] flex items-center justify-center">
+            <div className="relative max-h-[calc(100dvh-185px)] sm:max-h-[74vh] flex items-center justify-center">
               <video
                 ref={videoPlayerRef}
                 src={videoUrl}
@@ -753,7 +745,7 @@ export default function EditorPage() {
                 loop
                 autoPlay
                 muted={isVideoMuted}
-                className="max-h-[72vh] max-w-full rounded-2xl block object-contain shadow-2xl cursor-pointer"
+                className="max-h-[calc(100dvh-185px)] max-w-[calc(100vw-68px)] sm:max-w-full sm:max-h-[74vh] w-auto h-auto rounded-xl sm:rounded-2xl block object-contain shadow-2xl cursor-pointer"
                 style={{
                   filter: selectedFilter.css !== 'none' ? selectedFilter.css : undefined,
                 }}
@@ -797,7 +789,7 @@ export default function EditorPage() {
           ) : (
             <canvas
               ref={canvasRef}
-              className="max-h-[72vh] max-w-full rounded-2xl block object-contain shadow-2xl"
+              className="max-h-[calc(100dvh-185px)] max-w-[calc(100vw-68px)] sm:max-w-full sm:max-h-[74vh] w-auto h-auto rounded-xl sm:rounded-2xl block object-contain shadow-2xl"
               style={{
                 filter: `
                   ${selectedFilter.css !== 'none' ? selectedFilter.css : ''}
@@ -917,14 +909,14 @@ export default function EditorPage() {
         </div>
 
         {/* ── RIGHT FLOATING SNAPCHAT VERTICAL TOOLBAR ── */}
-        <div className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2 bg-black/60 backdrop-blur-xl border border-white/15 p-2 rounded-3xl shadow-2xl">
+        <div className="absolute right-2 sm:right-5 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-1.5 sm:gap-2 bg-black/75 backdrop-blur-xl border border-white/15 p-1.5 sm:p-2 rounded-2xl sm:rounded-3xl shadow-2xl max-h-[calc(100%-16px)] overflow-y-auto no-scrollbar">
           {/* Draw Brush Tool */}
           <button
             onClick={() => setActiveTool((t) => (t === 'draw' ? null : 'draw'))}
-            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all ${
               activeTool === 'draw'
                 ? 'bg-[#FFFC00] text-black shadow-lg shadow-[#FFFC00]/30 scale-105'
-                : 'text-white/70 hover:text-white hover:bg-white/10'
+                : 'text-white/70 hover:text-white hover:bg-white/10 active:scale-95'
             }`}
             title="Brush Tool"
           >
@@ -934,10 +926,10 @@ export default function EditorPage() {
           {/* Eraser Tool */}
           <button
             onClick={() => setActiveTool((t) => (t === 'erase' ? null : 'erase'))}
-            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all ${
               activeTool === 'erase'
                 ? 'bg-[#FFFC00] text-black shadow-lg shadow-[#FFFC00]/30 scale-105'
-                : 'text-white/70 hover:text-white hover:bg-white/10'
+                : 'text-white/70 hover:text-white hover:bg-white/10 active:scale-95'
             }`}
             title="Eraser Tool"
           >
@@ -952,7 +944,7 @@ export default function EditorPage() {
               setTextInput('');
               setShowTextModal(true);
             }}
-            className="w-10 h-10 rounded-2xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
             title="Add Text"
           >
             <Type className="w-4 h-4" />
@@ -961,7 +953,7 @@ export default function EditorPage() {
           {/* Stickers & Emojis Tool */}
           <button
             onClick={() => setShowStickerModal(true)}
-            className="w-10 h-10 rounded-2xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
             title="Stickers & Emojis"
           >
             <Smile className="w-4 h-4" />
@@ -970,10 +962,10 @@ export default function EditorPage() {
           {/* Crop Tool */}
           <button
             onClick={() => setActiveTool((t) => (t === 'crop' ? null : 'crop'))}
-            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all ${
               activeTool === 'crop'
                 ? 'bg-[#FFFC00] text-black shadow-lg shadow-[#FFFC00]/30 scale-105'
-                : 'text-white/70 hover:text-white hover:bg-white/10'
+                : 'text-white/70 hover:text-white hover:bg-white/10 active:scale-95'
             }`}
             title="Crop Image"
           >
@@ -983,10 +975,10 @@ export default function EditorPage() {
           {/* Adjustments Tool (Brightness/Contrast/Saturation) */}
           <button
             onClick={() => setActiveTool((t) => (t === 'adjust' ? null : 'adjust'))}
-            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all ${
               activeTool === 'adjust'
                 ? 'bg-[#FFFC00] text-black shadow-lg shadow-[#FFFC00]/30 scale-105'
-                : 'text-white/70 hover:text-white hover:bg-white/10'
+                : 'text-white/70 hover:text-white hover:bg-white/10 active:scale-95'
             }`}
             title="Tune Lighting & Color"
           >
@@ -996,10 +988,10 @@ export default function EditorPage() {
           {/* Filter Toggle */}
           <button
             onClick={() => setActiveTool((t) => (t === 'filters' ? null : 'filters'))}
-            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all ${
               activeTool === 'filters'
                 ? 'bg-[#FFFC00] text-black shadow-lg shadow-[#FFFC00]/30 scale-105'
-                : 'text-white/70 hover:text-white hover:bg-white/10'
+                : 'text-white/70 hover:text-white hover:bg-white/10 active:scale-95'
             }`}
             title="Color Filters"
           >
@@ -1016,7 +1008,7 @@ export default function EditorPage() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="absolute right-16 sm:right-20 top-1/2 -translate-y-1/2 z-30 w-56 glass-panel p-4 rounded-3xl border border-white/15 shadow-2xl"
+              className="absolute right-12 sm:right-18 top-1/2 -translate-y-1/2 z-30 w-[calc(100vw-64px)] max-w-[240px] sm:w-56 glass-panel p-3.5 sm:p-4 rounded-3xl border border-white/15 shadow-2xl"
             >
               <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/10">
                 <span className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -1088,7 +1080,7 @@ export default function EditorPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 glass-panel p-4 rounded-3xl border border-white/15 shadow-2xl flex flex-wrap items-center gap-3"
+              className="absolute bottom-16 sm:bottom-20 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-20px)] max-w-md glass-panel p-3 sm:p-4 rounded-3xl border border-white/15 shadow-2xl flex flex-wrap items-center justify-center gap-2 sm:gap-3"
             >
               <div className="flex items-center gap-1.5 border-r border-white/10 pr-3">
                 {['free', '1:1', '9:16', '4:5', '16:9'].map((aspect) => (
@@ -1139,7 +1131,7 @@ export default function EditorPage() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="absolute right-16 sm:right-20 top-1/2 -translate-y-1/2 z-30 w-64 glass-panel p-5 rounded-3xl border border-white/15 shadow-2xl"
+              className="absolute right-12 sm:right-18 top-1/2 -translate-y-1/2 z-30 w-[calc(100vw-64px)] max-w-[250px] sm:w-64 glass-panel p-4 sm:p-5 rounded-3xl border border-white/15 shadow-2xl"
             >
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
                 <span className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -1525,54 +1517,48 @@ export default function EditorPage() {
       {/* ── BOTTOM FILTER CAROUSEL & ACTIONS BAR ── */}
       <footer className="z-30 bg-[#0A0A0F]/90 backdrop-blur-md border-t border-white/8 p-3 sm:p-4 pb-safe">
         {/* 10 Real-Time Filter Shaders Carousel */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar touch-scroll-x max-w-xl mx-auto pb-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar touch-scroll-x max-w-xl mx-auto px-1 pb-2 overscroll-x-contain">
           {FILTERS.map((f) => {
             const isSelected = selectedFilter.id === f.id;
             return (
               <button
                 key={f.id}
                 onClick={() => setSelectedFilter(f)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md transition-all ${
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md transition-all whitespace-nowrap active:scale-95 ${
                   isSelected
-                    ? 'bg-[#FFFC00] text-black shadow-md shadow-[#FFFC00]/30 scale-105'
-                    : 'bg-white/5 text-white/60 hover:text-white border border-white/10'
+                    ? 'bg-[#FFFC00] text-black font-bold shadow-md shadow-[#FFFC00]/30 scale-105 ring-1 ring-[#FFFC00]'
+                    : 'bg-white/8 text-white/70 hover:text-white hover:bg-white/12 border border-white/10'
                 }`}
               >
                 <div
-                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                   style={{ backgroundColor: f.color || '#fff' }}
                 />
-                <span>{f.name}</span>
+                <span className="whitespace-nowrap">{f.name}</span>
               </button>
             );
           })}
         </div>
 
-        {/* Quick Save, Story & Send Actions Bar */}
-        <div className="flex items-center justify-between max-w-md mx-auto pt-2 gap-2">
+        {/* Quick Save to Memories & Export & Download Actions Bar */}
+        <div className="flex items-center justify-between max-w-md mx-auto pt-2 gap-2 sm:gap-3 w-full">
           <button
             onClick={handleSaveToMemories}
             disabled={isExporting}
-            className="glass-pill px-3.5 sm:px-4 py-2.5 rounded-2xl text-xs font-bold text-white flex items-center gap-2 hover:bg-white/15 active:scale-95 transition-transform flex-shrink-0"
+            className="flex-1 h-11 sm:h-12 rounded-2xl glass-pill flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 text-xs sm:text-sm font-bold text-white hover:bg-white/15 active:scale-95 transition-all min-w-0"
+            title="Save to Memories"
           >
-            <Save className="w-4 h-4 text-[#FFFC00]" />
-            <span>Save</span>
+            <Save className="w-4 h-4 text-[#FFFC00] flex-shrink-0" />
+            <span className="truncate whitespace-nowrap">Save to Memories</span>
           </button>
 
           <button
-            onClick={handleAddToStory}
-            className="glass-pill px-3.5 sm:px-4 py-2.5 rounded-2xl text-xs font-bold text-white flex items-center gap-1.5 hover:border-[#FFFC00]/40 active:scale-95 transition-transform flex-shrink-0"
+            onClick={handleDownload}
+            className="flex-1 h-11 sm:h-12 rounded-2xl btn-snap flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 text-xs sm:text-sm font-bold text-black shadow-lg shadow-[#FFFC00]/25 active:scale-95 transition-all min-w-0"
+            title="Export & Download"
           >
-            <PlusCircle className="w-4 h-4 text-[#FFFC00]" />
-            <span>+ Story</span>
-          </button>
-
-          <button
-            onClick={() => setShowSendFriendsModal(true)}
-            className="btn-snap px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-bold text-black flex items-center gap-2 shadow-lg shadow-[#FFFC00]/25 active:scale-95 transition-transform flex-1 justify-center max-w-[190px]"
-          >
-            <Send className="w-4 h-4 text-black" />
-            <span>Send To &gt;</span>
+            <Download className="w-4 h-4 text-black flex-shrink-0" />
+            <span className="truncate whitespace-nowrap">Export & Download</span>
           </button>
         </div>
       </footer>
