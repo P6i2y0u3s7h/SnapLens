@@ -782,3 +782,4 @@ export default function FriendProfilePage() {
     </div>
   );
 }
+

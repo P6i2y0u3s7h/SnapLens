@@ -488,7 +488,10 @@ export async function searchUsersInCloud(searchTerm, excludeUserId = null) {
     const matchedDocs = [];
     snapshot.forEach((d) => {
       if (excludeUserId && d.id === excludeUserId) return;
+      if (d.id.startsWith('friend_') || d.id.startsWith('demo_')) return;
       const data = d.data();
+      const name = (data.displayName || '').toLowerCase();
+      if (['sophia chen', 'liam vance', 'emma watson', 'alex rivera'].includes(name)) return;
       const matchName = data.displayName?.toLowerCase().includes(term);
       const matchHandle = data.handle?.toLowerCase().includes(term);
       if (matchName || matchHandle) {
@@ -564,7 +567,19 @@ export async function fetchRegisteredUsersInCloud({
 
     const filteredDocs = rawDocs.filter((d) => {
       const uid = d.id;
-      return uid !== currentUserId && !existingFriendIds.has(uid);
+      const data = d.data() || {};
+      const name = (data.displayName || '').trim().toLowerCase();
+      if (
+        uid === currentUserId ||
+        existingFriendIds.has(uid) ||
+        uid.startsWith('friend_') ||
+        uid.startsWith('user_') ||
+        uid.startsWith('demo_') ||
+        ['sophia chen', 'liam vance', 'emma watson', 'alex rivera'].includes(name)
+      ) {
+        return false;
+      }
+      return true;
     });
 
     const pageSlice = filteredDocs.slice(0, pageSize);
@@ -643,7 +658,17 @@ export async function fetchQuickAddSuggestionsInCloud(currentUserId, limitCount 
     const candidateDocs = [];
     snapshot.forEach((d) => {
       const uid = d.id;
-      if (uid === currentUserId || existingFriendIds.has(uid) || pendingIds.has(uid)) {
+      const data = d.data() || {};
+      const name = (data.displayName || '').trim().toLowerCase();
+      if (
+        uid === currentUserId ||
+        existingFriendIds.has(uid) ||
+        pendingIds.has(uid) ||
+        uid.startsWith('friend_') ||
+        uid.startsWith('user_') ||
+        uid.startsWith('demo_') ||
+        ['sophia chen', 'liam vance', 'emma watson', 'alex rivera'].includes(name)
+      ) {
         return;
       }
       candidateDocs.push(d);

@@ -27,17 +27,56 @@ import { useAuth } from '../contexts/AuthContext';
 const CHAT_STORAGE_KEY = 'snaplens_chat_v2';
 const REQUESTS_STORAGE_KEY = 'snaplens_friend_requests_v2';
 
-// Known legacy demo IDs to automatically clean up from local persistence
-const DEMO_IDS = new Set([
+// Known legacy demo IDs and names to automatically purge completely from state & persistence
+export const DEMO_IDS = new Set([
   'friend_1',
   'friend_2',
   'friend_3',
   'friend_4',
+  'friend_sophia',
+  'friend_liam',
+  'friend_emma',
+  'friend_alex',
   'user_david',
   'user_maya',
   'user_jordan',
   'user_clara',
+  'demo_user_snaplens_01',
+  'demo_user',
 ]);
+
+export const DEMO_NAMES = new Set([
+  'sophia chen',
+  'liam vance',
+  'emma watson',
+  'alex rivera',
+  'david kim',
+  'maya patel',
+  'jordan lee',
+  'clara oswald',
+]);
+
+export const DEMO_HANDLES = new Set([
+  'sophiac',
+  'liamv',
+  'emma_lens',
+  'alex_r',
+  'davidk',
+  'mayap',
+  'jordanl',
+  'clarao',
+]);
+
+export const isDemoEntity = (item) => {
+  if (!item) return false;
+  const id = String(item.id || item.uid || item.userId || item.senderId || '').trim();
+  if (DEMO_IDS.has(id)) return true;
+  const name = String(item.name || item.displayName || item.senderName || '').trim().toLowerCase();
+  if (DEMO_NAMES.has(name)) return true;
+  const handle = String(item.handle || item.username || item.senderHandle || '').trim().toLowerCase();
+  if (DEMO_HANDLES.has(handle)) return true;
+  return false;
+};
 
 const INITIAL_FRIENDS = [];
 const INITIAL_REQUESTS = [];
@@ -61,10 +100,15 @@ export function useChat() {
   // 1. Initial Load from LocalStorage (Purging any legacy demo items)
   useEffect(() => {
     try {
+      // Purge any legacy unversioned keys
+      localStorage.removeItem('snaplens_chat');
+      localStorage.removeItem('snaplens_friends');
+      localStorage.removeItem('snaplens_friend_requests');
+
       const storedFriends = localStorage.getItem(CHAT_STORAGE_KEY);
       if (storedFriends) {
         const parsed = JSON.parse(storedFriends);
-        const cleaned = (parsed || []).filter((f) => !DEMO_IDS.has(f.id));
+        const cleaned = (parsed || []).filter((f) => !isDemoEntity(f));
         setFriends(cleaned);
         localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(cleaned));
       } else {
@@ -74,9 +118,7 @@ export function useChat() {
       const storedReqs = localStorage.getItem(REQUESTS_STORAGE_KEY);
       if (storedReqs) {
         const parsedReqs = JSON.parse(storedReqs);
-        const cleanedReqs = (parsedReqs || []).filter(
-          (r) => !DEMO_IDS.has(r.id) && !DEMO_IDS.has(r.senderId)
-        );
+        const cleanedReqs = (parsedReqs || []).filter((r) => !isDemoEntity(r));
         setFriendRequests(cleanedReqs);
         localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(cleanedReqs));
       } else {
@@ -89,18 +131,20 @@ export function useChat() {
   }, []);
 
   const persistFriends = (updated) => {
-    setFriends(updated);
+    const cleaned = (updated || []).filter((f) => !isDemoEntity(f));
+    setFriends(cleaned);
     try {
-      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(cleaned));
     } catch (e) {
       console.warn('Storage error in chat:', e);
     }
   };
 
   const persistRequests = (updated) => {
-    setFriendRequests(updated);
+    const cleaned = (updated || []).filter((r) => !isDemoEntity(r));
+    setFriendRequests(cleaned);
     try {
-      localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(cleaned));
     } catch (e) {
       console.warn('Storage error in friend requests:', e);
     }
@@ -108,14 +152,21 @@ export function useChat() {
 
   // 1b. Subscribe to real-time incoming & sent friend requests, and friends from Firestore
   useEffect(() => {
-    if (!isFirebaseConfigured || !currentUser) return;
+    if (!isFirebaseConfigured || !currentUser) {
+      // When logged out or offline, ensure demo items are not displayed
+      setFriends((prev) => prev.filter((f) => !isDemoEntity(f)));
+      setFriendRequests((prev) => prev.filter((r) => !isDemoEntity(r)));
+      setSentRequests((prev) => prev.filter((r) => !isDemoEntity(r)));
+      return;
+    }
 
     const unsubIncoming = subscribeToIncomingFriendRequestsInCloud(
       currentUser.uid,
       (cloudRequests) => {
-        setFriendRequests(cloudRequests);
+        const cleaned = (cloudRequests || []).filter((r) => !isDemoEntity(r));
+        setFriendRequests(cleaned);
         try {
-          localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(cloudRequests));
+          localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(cleaned));
         } catch {}
       }
     );
@@ -123,32 +174,45 @@ export function useChat() {
     const unsubSent = subscribeToSentFriendRequestsInCloud(
       currentUser.uid,
       (cloudSent) => {
-        setSentRequests(cloudSent);
+        const cleaned = (cloudSent || []).filter((r) => !isDemoEntity(r));
+        setSentRequests(cleaned);
       }
     );
 
     const unsubFriends = subscribeToFriendsInCloud(
       currentUser.uid,
       (cloudFriends) => {
-        if (!cloudFriends || cloudFriends.length === 0) return;
+        const validFriends = (cloudFriends || []).filter((f) => !isDemoEntity(f));
+
         setFriends((prev) => {
-          const map = new Map();
-          prev.forEach((f) => map.set(f.id, f));
-          cloudFriends.forEach((cf) => {
-            const existing = map.get(cf.id);
-            map.set(cf.id, {
+          const prevMap = new Map();
+          prev.forEach((f) => {
+            if (!isDemoEntity(f)) {
+              prevMap.set(f.id, f);
+            }
+          });
+
+          // Firestore cloudFriends is the canonical list of real friends
+          const updated = validFriends.map((cf) => {
+            const existing = prevMap.get(cf.id);
+            return {
               ...cf,
+              name: cf.name || cf.displayName || 'SnapLens User',
+              handle: cf.handle || cf.username || 'user',
+              avatar: cf.avatar || cf.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${cf.id}`,
+              streak: cf.streak ?? existing?.streak ?? 0,
+              snapScore: cf.snapScore ?? existing?.snapScore ?? 100,
               messages: existing?.messages || [],
               lastInteraction: existing?.lastInteraction || 'Friends',
               lastInteractionTime: existing?.lastInteractionTime || 'Active',
               unreadCount: existing?.unreadCount || 0,
-            });
+            };
           });
-          const merged = Array.from(map.values());
+
           try {
-            localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(merged));
+            localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(updated));
           } catch {}
-          return merged;
+          return updated;
         });
       }
     );
@@ -169,7 +233,7 @@ export function useChat() {
     setIsLoadingQuickAdd(true);
     try {
       const suggestions = await fetchQuickAddSuggestionsInCloud(currentUser.uid);
-      setQuickAddSuggestions(suggestions);
+      setQuickAddSuggestions((suggestions || []).filter((u) => !isDemoEntity(u)));
     } catch (e) {
       console.warn('Quick add load error:', e);
     } finally {
@@ -195,7 +259,8 @@ export function useChat() {
           lastVisibleDoc: null,
           pageSize: 16,
         });
-        setPeopleOnSnapLens(res.users);
+        const validUsers = (res.users || []).filter((u) => !isDemoEntity(u));
+        setPeopleOnSnapLens(validUsers);
         setLastPeopleDoc(res.lastDoc);
         setHasMorePeople(res.hasMore);
       } catch (e) {
@@ -224,9 +289,10 @@ export function useChat() {
         lastVisibleDoc: lastPeopleDoc,
         pageSize: 16,
       });
+      const validUsers = (res.users || []).filter((u) => !isDemoEntity(u));
       setPeopleOnSnapLens((prev) => {
         const existingMap = new Set(prev.map((u) => u.id));
-        const newUsers = res.users.filter((u) => !existingMap.has(u.id));
+        const newUsers = validUsers.filter((u) => !existingMap.has(u.id));
         return [...prev, ...newUsers];
       });
       setLastPeopleDoc(res.lastDoc);
@@ -315,8 +381,9 @@ export function useChat() {
           cloudUsers = await searchUsersInCloud(queryTerm, currentUser?.uid);
         }
 
-        setSearchResults(cloudUsers);
-        return cloudUsers;
+        const validResults = (cloudUsers || []).filter((u) => !isDemoEntity(u));
+        setSearchResults(validResults);
+        return validResults;
       } catch (err) {
         console.warn('Search error:', err);
         return [];

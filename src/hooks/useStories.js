@@ -9,7 +9,24 @@ import { useAuth } from '../contexts/AuthContext';
 const STORIES_STORAGE_KEY = 'snaplens_stories_v2';
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
-const DEMO_STORY_IDS = new Set(['friend_sophia', 'friend_liam', 'friend_emma', 'friend_alex']);
+const DEMO_STORY_IDS = new Set([
+  'friend_sophia',
+  'friend_liam',
+  'friend_emma',
+  'friend_alex',
+  'friend_1',
+  'friend_2',
+  'friend_3',
+  'friend_4',
+]);
+
+const isDemoStory = (f) => {
+  if (!f) return false;
+  if (DEMO_STORY_IDS.has(f.id) || DEMO_STORY_IDS.has(f.userId)) return true;
+  const name = String(f.user?.name || f.userName || f.name || '').toLowerCase();
+  if (['sophia chen', 'liam vance', 'emma watson', 'alex rivera'].includes(name)) return true;
+  return false;
+};
 const INITIAL_FRIEND_STORIES = [];
 
 /**
@@ -37,7 +54,7 @@ export function useStories() {
         const parsed = JSON.parse(stored);
         const validMyStories = filterExpiredStories(parsed.myStories || []);
         const validFriends = (parsed.friendStories || [])
-          .filter((f) => !DEMO_STORY_IDS.has(f.id))
+          .filter((f) => !isDemoStory(f))
           .map((f) => ({
             ...f,
             items: filterExpiredStories(f.items),

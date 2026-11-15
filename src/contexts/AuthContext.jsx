@@ -12,17 +12,6 @@ import toast from 'react-hot-toast';
 
 const AuthContext = createContext(null);
 
-const DEFAULT_DEMO_USER = {
-  uid: 'demo_user_snaplens_01',
-  email: 'alex@snaplens.app',
-  displayName: 'Alex Rivers',
-  photoURL: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-  bio: 'Living in yellow & capturing moments 📸✨',
-  handle: 'alexrivers',
-  streakCount: 42,
-  snapsCount: 128,
-};
-
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -198,18 +187,24 @@ export function AuthProvider({ children }) {
       }
     } else {
       // Local fallback login
-      const mockUser = {
-        ...DEFAULT_DEMO_USER,
+      const username = email.split('@')[0];
+      const localUser = {
+        uid: 'user_' + Math.random().toString(36).substring(2, 10),
         email,
-        displayName: email.split('@')[0],
+        displayName: username.charAt(0).toUpperCase() + username.slice(1),
+        photoURL: `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`,
+        bio: 'SnapLens creator ✨',
+        handle: username.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+        streakCount: 0,
+        snapsCount: 0,
       };
-      setCurrentUser(mockUser);
-      setUserProfile(mockUser);
-      localStorage.setItem('snaplens_auth_user', JSON.stringify(mockUser));
+      setCurrentUser(localUser);
+      setUserProfile(localUser);
+      localStorage.setItem('snaplens_auth_user', JSON.stringify(localUser));
       setIsAuthModalOpen(false);
       setLoading(false);
-      toast.success(`Welcome back, ${mockUser.displayName}! ✨`);
-      return { success: true, user: mockUser };
+      toast.success(`Welcome back, ${localUser.displayName}! ✨`);
+      return { success: true, user: localUser };
     }
   };
 
