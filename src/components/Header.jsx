@@ -98,9 +98,10 @@ export default function Header() {
             </button>
           )}
 
+          {/* Shown on desktop website, hidden on mobile */}
           <button
             onClick={() => handleNav('/settings')}
-            className="w-9 h-9 rounded-xl glass-pill flex items-center justify-center text-white/70 hover:text-white transition-colors"
+            className="hidden md:flex w-9 h-9 rounded-xl glass-pill items-center justify-center text-white/70 hover:text-white transition-colors"
             title="Settings"
           >
             <Settings className="w-4 h-4" />
