@@ -758,7 +758,7 @@ export default function CameraPage() {
               className="flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#FFFC00]/20 backdrop-blur-md border border-[#FFFC00]/40 text-[#FFFC00] text-[11px] font-bold shadow-md"
             >
               <Sparkles className="w-3 h-3 text-[#FFFC00]" />
-              <span>Face Tracked: {FACE_LENSES.find((l) => l.id === activeFaceLens)?.name}</span>
+              <span>Face Tracked: {AR_FILTERS.find((l) => l.id === activeFaceLens)?.name || 'Active'}</span>
             </motion.div>
           ) : null}
 
