@@ -27,6 +27,8 @@ import {
   Download,
   Pause,
   Loader2,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import Header from '../components/Header';
 import { useChat } from '../hooks/useChat';
@@ -46,6 +48,8 @@ export default function ChatPage() {
     activeFriendId,
     setActiveFriendId,
     sendMessage,
+    deleteMessage,
+    clearChat,
     sendSnapToFriend,
     openSnapMessage,
     replaySnapMessage,
@@ -73,6 +77,31 @@ export default function ChatPage() {
   const [snapReplyText, setSnapReplyText] = useState('');
   const [savedSnapIds, setSavedSnapIds] = useState(new Set());
   const [isSavingToMemories, setIsSavingToMemories] = useState(false);
+  const [showChatMenu, setShowChatMenu] = useState(false);
+  const [chatToClear, setChatToClear] = useState(null);
+
+  // Clear chat conversation
+  const handleConfirmClearChat = async () => {
+    if (!chatToClear) return;
+    try {
+      await clearChat(chatToClear.id);
+      toast.success(`Cleared chat with ${chatToClear.name} 🗑️`);
+      setChatToClear(null);
+      setShowChatMenu(false);
+    } catch {
+      toast.error('Failed to clear chat.');
+    }
+  };
+
+  // Delete single message
+  const handleDeleteSingleMessage = async (friendId, messageId) => {
+    try {
+      await deleteMessage(friendId, messageId);
+      toast.success('Message deleted', { duration: 1800 });
+    } catch {
+      toast.error('Failed to delete message.');
+    }
+  };
 
   const mediaInputRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -611,7 +640,7 @@ export default function ChatPage() {
                       <div
                         key={friend.id}
                         onClick={() => setActiveFriendId(friend.id)}
-                        className={`p-3.5 flex items-center justify-between cursor-pointer transition-colors ${
+                        className={`group p-3.5 flex items-center justify-between cursor-pointer transition-colors ${
                           isActive ? 'bg-[#FFFC00]/10 border-l-4 border-l-[#FFFC00]' : 'hover:bg-white/5'
                         }`}
                       >
@@ -649,17 +678,30 @@ export default function ChatPage() {
                           </div>
                         </div>
 
-                        {/* Quick Snap Camera Icon */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate('/camera', { state: { sendToFriendId: friend.id } });
-                          }}
-                          className="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-white/60 hover:text-[#FFFC00] transition-colors"
-                          title={`Send snap to ${friend.name}`}
-                        >
-                          <Camera className="w-4 h-4" />
-                        </button>
+                        {/* Quick Actions: Clear Chat & Camera */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setChatToClear(friend);
+                            }}
+                            className="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-white/40 hover:text-red-400 hover:border-red-500/30 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+                            title={`Clear chat with ${friend.name}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate('/camera', { state: { sendToFriendId: friend.id } });
+                            }}
+                            className="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-white/60 hover:text-[#FFFC00] transition-colors"
+                            title={`Send snap to ${friend.name}`}
+                          >
+                            <Camera className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })
@@ -823,6 +865,34 @@ export default function ChatPage() {
                       <Camera className="w-4 h-4" />
                       <span className="hidden sm:inline">Send Snap</span>
                     </button>
+
+                    {/* Chat Options / Delete Chat Menu */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowChatMenu((prev) => !prev)}
+                        className={`w-8 h-8 rounded-full glass-pill flex items-center justify-center transition-colors ${
+                          showChatMenu ? 'bg-white/20 text-[#FFFC00]' : 'text-white/70 hover:text-white'
+                        }`}
+                        title="Chat Options"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+
+                      {showChatMenu && (
+                        <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl bg-[#141420] border border-white/15 shadow-2xl p-1.5 z-30">
+                          <button
+                            onClick={() => {
+                              setShowChatMenu(false);
+                              setChatToClear(activeFriend);
+                            }}
+                            className="w-full px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/15 rounded-xl flex items-center gap-2 transition-colors text-left"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Clear Chat History</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -842,7 +912,7 @@ export default function ChatPage() {
                     return (
                       <div
                         key={msg.id}
-                        className={`w-full flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1`}
+                        className={`group w-full flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1`}
                       >
                         {isSnap ? (
                           /* Disappearing Snap Message Card */
@@ -962,7 +1032,7 @@ export default function ChatPage() {
                           </div>
                         )}
 
-                        <div className="flex items-center gap-1 mt-1 px-1">
+                        <div className="flex items-center gap-1.5 mt-1 px-1">
                           <span className="text-[10px] text-white/40 font-mono">
                             {msg.time}
                           </span>
@@ -971,6 +1041,14 @@ export default function ChatPage() {
                               <CheckCheck className="w-3 h-3" />
                             </span>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSingleMessage(activeFriend.id, msg.id)}
+                            className="opacity-0 group-hover:opacity-100 hover:opacity-100 text-white/30 hover:text-red-400 p-0.5 rounded transition-all ml-1"
+                            title="Delete message"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
                         </div>
                       </div>
                     );
@@ -1339,6 +1417,48 @@ export default function ChatPage() {
               </form>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Clear Chat Confirmation Modal */}
+      <AnimatePresence>
+        {chatToClear && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-sm glass-panel rounded-3xl p-6 border border-white/15 shadow-2xl text-center"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/30 flex items-center justify-center mx-auto mb-3 text-red-400">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-white mb-1">
+                Clear Chat History?
+              </h3>
+              <p className="text-xs text-white/60 mb-6 leading-relaxed">
+                Are you sure you want to delete all messages and Snaps with <span className="text-white font-bold">{chatToClear.name}</span>? This action cannot be undone.
+              </p>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setChatToClear(null)}
+                  className="flex-1 py-2.5 rounded-xl glass-pill text-xs font-bold text-white/70 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmClearChat}
+                  className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold shadow-lg shadow-red-500/20 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear Chat</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

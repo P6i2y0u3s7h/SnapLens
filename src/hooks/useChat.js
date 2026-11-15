@@ -15,6 +15,8 @@ import {
   subscribeToSentFriendRequestsInCloud,
   subscribeToFriendsInCloud,
   removeFriendInCloud,
+  deleteChatMessageInCloud,
+  clearChatConversationInCloud,
   getChatId,
 } from '../services/firebaseService';
 import { useAuth } from '../contexts/AuthContext';
@@ -508,6 +510,67 @@ export function useChat() {
     [friends, isFirebaseConfigured, currentUser]
   );
 
+  // 7b. Delete a single message from chat
+  const deleteMessage = useCallback(
+    async (friendId, messageId) => {
+      if (!friendId || !messageId) return { success: false };
+
+      const updated = friends.map((f) => {
+        if (f.id === friendId) {
+          const remainingMessages = (f.messages || []).filter((m) => m.id !== messageId);
+          const lastMsg = remainingMessages[remainingMessages.length - 1];
+          return {
+            ...f,
+            messages: remainingMessages,
+            lastInteraction: lastMsg
+              ? lastMsg.text || (lastMsg.type === 'snap' ? 'Snap' : 'Media')
+              : 'Chat cleared',
+            lastInteractionTime: lastMsg?.time || 'Just now',
+          };
+        }
+        return f;
+      });
+      persistFriends(updated);
+
+      if (isFirebaseConfigured && currentUser) {
+        const chatId = getChatId(currentUser.uid, friendId);
+        await deleteChatMessageInCloud(chatId, messageId);
+      }
+
+      return { success: true };
+    },
+    [friends, isFirebaseConfigured, currentUser]
+  );
+
+  // 7c. Clear / delete all messages in a conversation
+  const clearChat = useCallback(
+    async (friendId) => {
+      if (!friendId) return { success: false };
+
+      const updated = friends.map((f) => {
+        if (f.id === friendId) {
+          return {
+            ...f,
+            messages: [],
+            lastInteraction: 'Chat cleared',
+            lastInteractionTime: 'Just now',
+            unreadCount: 0,
+          };
+        }
+        return f;
+      });
+      persistFriends(updated);
+
+      if (isFirebaseConfigured && currentUser) {
+        const chatId = getChatId(currentUser.uid, friendId);
+        await clearChatConversationInCloud(chatId);
+      }
+
+      return { success: true };
+    },
+    [friends, isFirebaseConfigured, currentUser]
+  );
+
   // 8. Send a Disappearing Snap directly to a Friend
   const sendSnapToFriend = useCallback(
     async (friendId, { snapUrl, type = 'photo', caption = '' }) => {
@@ -842,6 +905,8 @@ export function useChat() {
     activeFriendId,
     setActiveFriendId,
     sendMessage,
+    deleteMessage,
+    clearChat,
     sendSnapToFriend,
     sendSnapToMultipleFriends,
     openSnapMessage,

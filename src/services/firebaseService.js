@@ -1221,6 +1221,53 @@ export function subscribeToChatMessagesInCloud(chatId, onUpdate) {
 }
 
 /**
+ * Deletes a single message from Firestore chat
+ */
+export async function deleteChatMessageInCloud(chatId, messageId) {
+  if (!isFirebaseConfigured || !db || !chatId || !messageId) return { success: true };
+
+  try {
+    const msgRef = doc(db, 'chats', chatId, 'messages', messageId);
+    await deleteDoc(msgRef);
+    return { success: true };
+  } catch (err) {
+    console.warn('Delete chat message cloud error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Clears / deletes all messages in a chat conversation in Firestore
+ */
+export async function clearChatConversationInCloud(chatId) {
+  if (!isFirebaseConfigured || !db || !chatId) return { success: true };
+
+  try {
+    const messagesRef = collection(db, 'chats', chatId, 'messages');
+    const snap = await getDocs(messagesRef);
+    const deletePromises = snap.docs.map((d) => deleteDoc(d.ref).catch(() => {}));
+    await Promise.all(deletePromises);
+
+    // Update parent chat metadata
+    const chatDocRef = doc(db, 'chats', chatId);
+    await setDoc(
+      chatDocRef,
+      {
+        lastMessage: 'Chat cleared',
+        lastMessageTime: serverTimestamp(),
+        lastMessageTimeMs: Date.now(),
+      },
+      { merge: true }
+    );
+
+    return { success: true };
+  } catch (err) {
+    console.warn('Clear chat conversation cloud error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
  * Uploads a photo or video once to Firebase Storage for sharing across multiple recipients
  */
 export async function uploadSnapMediaOnce({
