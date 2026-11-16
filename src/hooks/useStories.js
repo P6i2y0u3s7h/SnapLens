@@ -5,6 +5,7 @@ import {
   deleteStoryFromCloud,
   markStoryViewedInCloud,
   subscribeToFriendsInCloud,
+  getStoryExpirationMs,
 } from '../services/firebaseService';
 import { useAuth } from '../contexts/AuthContext';
 import { auth } from '../firebase';
@@ -40,14 +41,8 @@ function filterExpiredStories(items) {
   const now = Date.now();
   return (items || []).filter((item) => {
     if (!item) return false;
-    const expiresAt =
-      item.expiresAtMs ||
-      (item.expiresAt ? new Date(item.expiresAt).getTime() : 0);
-    if (expiresAt && expiresAt > now) return true;
-    const createdTime =
-      item.createdAtMs ||
-      (item.createdAt ? new Date(item.createdAt).getTime() : now);
-    return now - createdTime < TWENTY_FOUR_HOURS_MS;
+    const expiresAt = getStoryExpirationMs(item, now);
+    return expiresAt > now;
   });
 }
 
@@ -171,15 +166,9 @@ export function useStories() {
       const friendGroups = {};
 
       (allStories || []).forEach((story) => {
-        const expiresAt =
-          story.expiresAtMs ||
-          (story.expiresAt ? new Date(story.expiresAt).getTime() : 0);
-        const createdTime =
-          story.createdAtMs ||
-          (story.createdAt ? new Date(story.createdAt).getTime() : now);
-        const isExpired =
-          expiresAt ? expiresAt <= now : now - createdTime >= TWENTY_FOUR_HOURS_MS;
-        if (isExpired) return;
+        const expiresAt = getStoryExpirationMs(story, now);
+        // Exclude strictly expired stories (> 24 hours elapsed)
+        if (expiresAt <= now) return;
 
         const uid = story.userId;
         if (!uid) return;
@@ -331,6 +320,23 @@ export function useStories() {
     };
   }, [isFirebaseConfigured, currentUser, syncStoriesState]);
 
+  // 3. Periodic local expiration sweep every 60 seconds so expired stories drop cleanly after 24h
+  useEffect(() => {
+    const sweepInterval = setInterval(() => {
+      setMyStories((prev) => filterExpiredStories(prev));
+      setFriendStories((prev) =>
+        prev
+          .map((fg) => ({
+            ...fg,
+            items: filterExpiredStories(fg.items),
+          }))
+          .filter((fg) => fg.items.length > 0)
+      );
+    }, 60 * 1000);
+
+    return () => clearInterval(sweepInterval);
+  }, []);
+
   // Add new snap (photo or video) to My Story
   const addSnapToMyStory = useCallback(
     async ({
@@ -351,10 +357,13 @@ export function useStories() {
       const cleanMediaType = isVideo ? 'video' : 'image';
 
       const effectiveUid =
-        currentUser?.uid ||
         auth?.currentUser?.uid ||
-        userProfile?.uid ||
-        'user_' + now;
+        currentUser?.uid ||
+        userProfile?.uid;
+
+      if (!effectiveUid) {
+        throw new Error('Please log in with a valid account to upload a story.');
+      }
       const username =
         userProfile?.handle ||
         userProfile?.username ||

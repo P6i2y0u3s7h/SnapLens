@@ -18,6 +18,7 @@ import {
   serverTimestamp,
   arrayUnion,
   increment,
+  Timestamp,
 } from 'firebase/firestore';
 import {
   ref,
@@ -293,6 +294,40 @@ export function downloadMediaFile(mediaUrl, filename = 'snaplens_media') {
 const STORY_EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
+ * Accurately extracts the expiration timestamp in ms from a story document data object.
+ * Supports Firestore Timestamp, numeric milliseconds, and ISO date strings.
+ * Defaults reliably to createdAt + 24 hours (1440 minutes) so stories never expire prematurely.
+ */
+export function getStoryExpirationMs(data, now = Date.now()) {
+  if (!data) return 0;
+  // 1. Check Firestore Timestamp object
+  if (data.expiresAt?.toMillis) {
+    const t = data.expiresAt.toMillis();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  // 2. Check numeric timestamp
+  if (typeof data.expiresAtMs === 'number' && !isNaN(data.expiresAtMs) && data.expiresAtMs > 0) {
+    return data.expiresAtMs;
+  }
+  // 3. Check ISO string
+  if (typeof data.expiresAt === 'string') {
+    const t = new Date(data.expiresAt).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  if (typeof data.expiresAtISO === 'string') {
+    const t = new Date(data.expiresAtISO).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  // 4. Fallback based on creation time + 24 hours
+  const createdMs =
+    (data.createdAt?.toMillis ? data.createdAt.toMillis() : null) ||
+    data.createdAtMs ||
+    (typeof data.createdAt === 'string' ? new Date(data.createdAt).getTime() : null) ||
+    now;
+  return createdMs + STORY_EXPIRATION_MS;
+}
+
+/**
  * Uploads a story item (photo or video) to Firebase Storage and adds metadata to 'stories'
  */
 export async function uploadStoryToCloud({
@@ -427,7 +462,10 @@ export async function uploadStoryToCloud({
       mediaUrl: downloadURL,
       mediaType: cleanMediaType,
       createdAt: serverTimestamp(),
-      expiresAt: expiresAtDate.toISOString(),
+      createdAtMs: now,
+      expiresAt: Timestamp.fromMillis(expiresAtMs), // Firestore Timestamp (supports TTL policies)
+      expiresAtMs,
+      expiresAtISO: expiresAtDate.toISOString(),
       // Backward compatibility aliases
       url: downloadURL,
       type: isVideo ? 'video' : 'photo',
@@ -438,8 +476,6 @@ export async function uploadStoryToCloud({
       caption: caption || '',
       filter: filter || 'Original',
       duration: isVideo ? (duration || 10) : 5,
-      createdAtMs: now,
-      expiresAtMs,
       views: [],
       viewsCount: 0,
     };
@@ -504,13 +540,17 @@ export function subscribeToActiveStoriesInCloud(onUpdate) {
     const stories = [];
     snapshot.forEach((d) => {
       const data = d.data();
-      const expiresAt =
-        data.expiresAtMs ||
-        (data.expiresAt ? new Date(data.expiresAt).getTime() : 0) ||
-        ((data.createdAtMs || now) + STORY_EXPIRATION_MS);
+      const expiresAt = getStoryExpirationMs(data, now);
 
+      // Only include stories where expiresAt is strictly in the future (within 24h)
       if (expiresAt > now) {
         const isVideo = data.mediaType === 'video' || data.type === 'video';
+        const createdMs =
+          (data.createdAt?.toMillis ? data.createdAt.toMillis() : null) ||
+          data.createdAtMs ||
+          (typeof data.createdAt === 'string' ? new Date(data.createdAt).getTime() : null) ||
+          now;
+
         stories.push({
           id: d.id,
           storyId: data.storyId || d.id,
@@ -528,9 +568,9 @@ export function subscribeToActiveStoriesInCloud(onUpdate) {
           caption: data.caption || '',
           filter: data.filter || 'Original',
           duration: data.duration || (isVideo ? 10 : 5),
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAtMs || now).toISOString(),
-          createdAtMs: data.createdAtMs || (data.createdAt?.toMillis ? data.createdAt.toMillis() : now),
-          expiresAt: data.expiresAt || new Date(expiresAt).toISOString(),
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(createdMs).toISOString(),
+          createdAtMs: createdMs,
+          expiresAt: data.expiresAt?.toDate ? data.expiresAt.toDate().toISOString() : new Date(expiresAt).toISOString(),
           expiresAtMs: expiresAt,
           views: Array.isArray(data.views) ? data.views : [],
           viewsCount: typeof data.viewsCount === 'number' ? data.viewsCount : (Array.isArray(data.views) ? data.views.length : 0),
@@ -543,7 +583,7 @@ export function subscribeToActiveStoriesInCloud(onUpdate) {
   };
 
   try {
-    const q = query(storiesRef, limit(150));
+    const q = query(storiesRef, limit(200));
     return onSnapshot(
       q,
       processSnapshot,
@@ -568,18 +608,21 @@ export async function fetchActiveStoriesFromCloud() {
   const storiesRef = collection(db, 'stories');
 
   try {
-    const q = query(storiesRef, limit(150));
+    const q = query(storiesRef, limit(200));
     const snapshot = await getDocs(q);
     const stories = [];
     snapshot.forEach((d) => {
       const data = d.data();
-      const expiresAt =
-        data.expiresAtMs ||
-        (data.expiresAt ? new Date(data.expiresAt).getTime() : 0) ||
-        ((data.createdAtMs || now) + STORY_EXPIRATION_MS);
+      const expiresAt = getStoryExpirationMs(data, now);
 
       if (expiresAt > now) {
         const isVideo = data.mediaType === 'video' || data.type === 'video';
+        const createdMs =
+          (data.createdAt?.toMillis ? data.createdAt.toMillis() : null) ||
+          data.createdAtMs ||
+          (typeof data.createdAt === 'string' ? new Date(data.createdAt).getTime() : null) ||
+          now;
+
         stories.push({
           id: d.id,
           storyId: data.storyId || d.id,
@@ -597,9 +640,9 @@ export async function fetchActiveStoriesFromCloud() {
           caption: data.caption || '',
           filter: data.filter || 'Original',
           duration: data.duration || (isVideo ? 10 : 5),
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAtMs || now).toISOString(),
-          createdAtMs: data.createdAtMs || (data.createdAt?.toMillis ? data.createdAt.toMillis() : now),
-          expiresAt: data.expiresAt || new Date(expiresAt).toISOString(),
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(createdMs).toISOString(),
+          createdAtMs: createdMs,
+          expiresAt: data.expiresAt?.toDate ? data.expiresAt.toDate().toISOString() : new Date(expiresAt).toISOString(),
           expiresAtMs: expiresAt,
           views: Array.isArray(data.views) ? data.views : [],
           viewsCount: typeof data.viewsCount === 'number' ? data.viewsCount : (Array.isArray(data.views) ? data.views.length : 0),
