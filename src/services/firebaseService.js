@@ -299,22 +299,44 @@ export async function uploadStoryToCloud({
   fileBlob,
   dataUrl,
   type = 'photo',
+  mediaType = null,
   filter = 'Original',
   caption = '',
   duration = null,
   user = null,
   onProgress = null,
 }) {
-  const effectiveUserId = user?.uid || auth?.currentUser?.uid || 'user_' + Date.now();
-  const userName = user?.displayName || auth?.currentUser?.displayName || 'SnapLens Creator';
-  const userHandle = user?.handle || userName.toLowerCase().replace(/\s+/g, '');
+  const effectiveUserId =
+    user?.uid ||
+    user?.id ||
+    auth?.currentUser?.uid ||
+    'user_' + Date.now();
+  const userName =
+    user?.displayName ||
+    user?.name ||
+    auth?.currentUser?.displayName ||
+    'SnapLens Creator';
+  const userHandle =
+    user?.handle ||
+    user?.username ||
+    userName.toLowerCase().replace(/[^a-z0-9_]/g, '') ||
+    'user';
   const userAvatar =
     user?.photoURL ||
+    user?.profileImage ||
+    user?.avatar ||
     auth?.currentUser?.photoURL ||
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';
+    `https://api.dicebear.com/7.x/bottts/svg?seed=${effectiveUserId}`;
 
   const now = Date.now();
-  const expiresAt = now + STORY_EXPIRATION_MS;
+  const expiresAtMs = now + STORY_EXPIRATION_MS;
+  const expiresAtDate = new Date(expiresAtMs);
+
+  const isVideo =
+    type === 'video' ||
+    mediaType === 'video' ||
+    (fileBlob && fileBlob.type && fileBlob.type.startsWith('video'));
+  const cleanMediaType = isVideo ? 'video' : 'image';
 
   // Local fallback if Firebase not configured
   if (!isFirebaseConfigured || !storage || !db) {
@@ -322,23 +344,32 @@ export async function uploadStoryToCloud({
       onProgress(50);
       setTimeout(() => onProgress(100), 200);
     }
+    const localId = 'local_story_' + now;
     return {
-      id: 'local_story_' + now,
-      cloudId: 'local_story_' + now,
+      id: localId,
+      storyId: localId,
+      cloudId: localId,
       isLocal: true,
       userId: effectiveUserId,
+      username: userHandle,
       userName,
       userHandle,
+      profileImage: userAvatar,
       userAvatar,
       url: dataUrl || (fileBlob ? URL.createObjectURL(fileBlob) : ''),
-      type,
+      mediaUrl: dataUrl || (fileBlob ? URL.createObjectURL(fileBlob) : ''),
+      mediaType: cleanMediaType,
+      type: isVideo ? 'video' : 'photo',
       caption,
       filter,
-      duration,
+      duration: isVideo ? (duration || 10) : 5,
       createdAt: new Date(now).toISOString(),
-      expiresAt: new Date(expiresAt).toISOString(),
+      createdAtMs: now,
+      expiresAt: expiresAtDate.toISOString(),
+      expiresAtMs,
       time: 'Just now',
-      views: 0,
+      views: [],
+      viewsCount: 0,
     };
   }
 
@@ -346,20 +377,25 @@ export async function uploadStoryToCloud({
     // 1. Prepare blob
     let blobToUpload = fileBlob;
     if (!blobToUpload && dataUrl) {
-      const res = await fetch(dataUrl);
-      blobToUpload = await res.blob();
+      if (typeof dataUrl === 'string') {
+        const res = await fetch(dataUrl);
+        blobToUpload = await res.blob();
+      }
     }
     if (!blobToUpload) throw new Error('No media blob available for story');
 
     // 2. Storage Reference: stories/{userId}/{timestamp}_{rand}.{ext}
-    const ext = type === 'video' ? 'webm' : 'jpg';
-    const filename = `${now}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+    const mimeType = blobToUpload.type || (isVideo ? 'video/webm' : 'image/jpeg');
+    const ext = isVideo
+      ? (mimeType.includes('mp4') ? 'mp4' : 'webm')
+      : (mimeType.includes('png') ? 'png' : 'jpg');
+    const filename = `${now}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
     const storagePath = `stories/${effectiveUserId}/${filename}`;
     const storageRef = ref(storage, storagePath);
 
     // 3. Upload file
     const uploadTask = uploadBytesResumable(storageRef, blobToUpload, {
-      contentType: type === 'video' ? 'video/webm' : 'image/jpeg',
+      contentType: mimeType,
     });
 
     const downloadURL = await new Promise((resolve, reject) => {
@@ -378,54 +414,70 @@ export async function uploadStoryToCloud({
       );
     });
 
-    // 4. Firestore Document in 'stories'
+    // 4. Firestore Document in 'stories' with required schema
+    const docRef = doc(collection(db, 'stories'));
     const storyDocData = {
+      storyId: docRef.id,
       userId: effectiveUserId,
+      username: userHandle,
+      profileImage: userAvatar,
+      mediaUrl: downloadURL,
+      mediaType: cleanMediaType,
+      createdAt: serverTimestamp(),
+      expiresAt: expiresAtDate.toISOString(),
+      // Backward compatibility aliases
+      url: downloadURL,
+      type: isVideo ? 'video' : 'photo',
       userName,
       userHandle,
       userAvatar,
-      url: downloadURL,
-      mediaUrl: downloadURL,
       storagePath,
-      type: type === 'video' ? 'video' : 'photo',
       caption: caption || '',
       filter: filter || 'Original',
-      duration: typeof duration === 'number' && duration > 0 ? duration : (type === 'video' ? 10 : 5),
-      createdAt: serverTimestamp(),
+      duration: isVideo ? (duration || 10) : 5,
       createdAtMs: now,
-      expiresAtMs: expiresAt,
+      expiresAtMs,
       views: [],
       viewsCount: 0,
     };
 
-    const docRef = await addDoc(collection(db, 'stories'), storyDocData);
+    await setDoc(docRef, storyDocData);
 
     return {
       id: docRef.id,
+      storyId: docRef.id,
       cloudId: docRef.id,
       isLocal: false,
       ...storyDocData,
       createdAt: new Date(now).toISOString(),
-      expiresAt: new Date(expiresAt).toISOString(),
+      expiresAt: expiresAtDate.toISOString(),
       time: 'Just now',
     };
   } catch (error) {
     console.warn('Story cloud upload failed, falling back locally:', error);
+    const localId = 'local_story_' + now;
     return {
-      id: 'local_story_' + now,
-      cloudId: 'local_story_' + now,
+      id: localId,
+      storyId: localId,
+      cloudId: localId,
       isLocal: true,
       userId: effectiveUserId,
+      username: userHandle,
       userName,
       userHandle,
+      profileImage: userAvatar,
       userAvatar,
       url: dataUrl || (fileBlob ? URL.createObjectURL(fileBlob) : ''),
-      type: type === 'video' ? 'video' : 'photo',
+      mediaUrl: dataUrl || (fileBlob ? URL.createObjectURL(fileBlob) : ''),
+      mediaType: cleanMediaType,
+      type: isVideo ? 'video' : 'photo',
       caption: caption || '',
       filter: filter || 'Original',
-      duration: typeof duration === 'number' && duration > 0 ? duration : (type === 'video' ? 10 : 5),
+      duration: isVideo ? (duration || 10) : 5,
       createdAt: new Date(now).toISOString(),
-      expiresAt: new Date(expiresAt).toISOString(),
+      createdAtMs: now,
+      expiresAt: expiresAtDate.toISOString(),
+      expiresAtMs,
       time: 'Just now',
       views: [],
       viewsCount: 0,
@@ -442,7 +494,6 @@ export function subscribeToActiveStoriesInCloud(onUpdate) {
     return () => {};
   }
 
-  const minTimestamp = Date.now() - STORY_EXPIRATION_MS;
   const storiesRef = collection(db, 'stories');
 
   const processSnapshot = (snapshot) => {
@@ -450,17 +501,36 @@ export function subscribeToActiveStoriesInCloud(onUpdate) {
     const stories = [];
     snapshot.forEach((d) => {
       const data = d.data();
-      const expiresAt = data.expiresAtMs || ((data.createdAtMs || now) + STORY_EXPIRATION_MS);
+      const expiresAt =
+        data.expiresAtMs ||
+        (data.expiresAt ? new Date(data.expiresAt).getTime() : 0) ||
+        ((data.createdAtMs || now) + STORY_EXPIRATION_MS);
+
       if (expiresAt > now) {
+        const isVideo = data.mediaType === 'video' || data.type === 'video';
         stories.push({
           id: d.id,
+          storyId: data.storyId || d.id,
           cloudId: d.id,
-          ...data,
-          type: data.type === 'video' ? 'video' : 'photo',
+          userId: data.userId,
+          username: data.username || data.userHandle || 'user',
+          userName: data.userName || data.username || 'Snap Friend',
+          profileImage: data.profileImage || data.userAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.userId}`,
+          userAvatar: data.profileImage || data.userAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.userId}`,
+          userHandle: data.username || data.userHandle || 'user',
+          mediaUrl: data.mediaUrl || data.url,
+          url: data.mediaUrl || data.url,
+          mediaType: isVideo ? 'video' : 'image',
+          type: isVideo ? 'video' : 'photo',
+          caption: data.caption || '',
+          filter: data.filter || 'Original',
+          duration: data.duration || (isVideo ? 10 : 5),
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAtMs || now).toISOString(),
+          createdAtMs: data.createdAtMs || (data.createdAt?.toMillis ? data.createdAt.toMillis() : now),
+          expiresAt: data.expiresAt || new Date(expiresAt).toISOString(),
+          expiresAtMs: expiresAt,
           views: Array.isArray(data.views) ? data.views : [],
           viewsCount: typeof data.viewsCount === 'number' ? data.viewsCount : (Array.isArray(data.views) ? data.views.length : 0),
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAtMs || now).toISOString(),
-          expiresAt: new Date(expiresAt).toISOString(),
         });
       }
     });
@@ -470,36 +540,18 @@ export function subscribeToActiveStoriesInCloud(onUpdate) {
   };
 
   try {
-    const q = query(
-      storiesRef,
-      where('createdAtMs', '>=', minTimestamp),
-      orderBy('createdAtMs', 'desc')
-    );
-
+    const q = query(storiesRef, limit(150));
     return onSnapshot(
       q,
       processSnapshot,
       (err) => {
-        console.warn('Real-time stories query fallback:', err);
-        try {
-          const fallbackQ = query(storiesRef, limit(100));
-          return onSnapshot(fallbackQ, processSnapshot, (e) => {
-            console.warn('Fallback stories listener error:', e);
-            if (onUpdate) onUpdate([]);
-          });
-        } catch {
-          if (onUpdate) onUpdate([]);
-        }
+        console.warn('Real-time stories query error:', err);
+        if (onUpdate) onUpdate([]);
       }
     );
   } catch (err) {
     console.warn('Failed to start story listener:', err);
-    try {
-      const fallbackQ = query(storiesRef, limit(100));
-      return onSnapshot(fallbackQ, processSnapshot, () => {});
-    } catch {
-      return () => {};
-    }
+    return () => {};
   }
 }
 
@@ -510,38 +562,44 @@ export async function fetchActiveStoriesFromCloud() {
   if (!isFirebaseConfigured || !db) return [];
 
   const now = Date.now();
-  const minTimestamp = now - STORY_EXPIRATION_MS;
   const storiesRef = collection(db, 'stories');
 
   try {
-    let snapshot;
-    try {
-      const q = query(
-        storiesRef,
-        where('createdAtMs', '>=', minTimestamp),
-        orderBy('createdAtMs', 'desc')
-      );
-      snapshot = await getDocs(q);
-    } catch (indexErr) {
-      console.warn('fetchActiveStoriesFromCloud query fallback:', indexErr);
-      const fallbackQ = query(storiesRef, limit(100));
-      snapshot = await getDocs(fallbackQ);
-    }
-
+    const q = query(storiesRef, limit(150));
+    const snapshot = await getDocs(q);
     const stories = [];
     snapshot.forEach((d) => {
       const data = d.data();
-      const expiresAt = data.expiresAtMs || ((data.createdAtMs || now) + STORY_EXPIRATION_MS);
+      const expiresAt =
+        data.expiresAtMs ||
+        (data.expiresAt ? new Date(data.expiresAt).getTime() : 0) ||
+        ((data.createdAtMs || now) + STORY_EXPIRATION_MS);
+
       if (expiresAt > now) {
+        const isVideo = data.mediaType === 'video' || data.type === 'video';
         stories.push({
           id: d.id,
+          storyId: data.storyId || d.id,
           cloudId: d.id,
-          ...data,
-          type: data.type === 'video' ? 'video' : 'photo',
+          userId: data.userId,
+          username: data.username || data.userHandle || 'user',
+          userName: data.userName || data.username || 'Snap Friend',
+          profileImage: data.profileImage || data.userAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.userId}`,
+          userAvatar: data.profileImage || data.userAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.userId}`,
+          userHandle: data.username || data.userHandle || 'user',
+          mediaUrl: data.mediaUrl || data.url,
+          url: data.mediaUrl || data.url,
+          mediaType: isVideo ? 'video' : 'image',
+          type: isVideo ? 'video' : 'photo',
+          caption: data.caption || '',
+          filter: data.filter || 'Original',
+          duration: data.duration || (isVideo ? 10 : 5),
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAtMs || now).toISOString(),
+          createdAtMs: data.createdAtMs || (data.createdAt?.toMillis ? data.createdAt.toMillis() : now),
+          expiresAt: data.expiresAt || new Date(expiresAt).toISOString(),
+          expiresAtMs: expiresAt,
           views: Array.isArray(data.views) ? data.views : [],
           viewsCount: typeof data.viewsCount === 'number' ? data.viewsCount : (Array.isArray(data.views) ? data.views.length : 0),
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAtMs || now).toISOString(),
-          expiresAt: new Date(expiresAt).toISOString(),
         });
       }
     });

@@ -183,8 +183,9 @@ export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete,
             </div>
           </div>
 
+          {/* Options: Mute for video, Close */}
           <div className="flex items-center gap-2">
-            {currentItem?.type === 'video' && (
+            {(currentItem?.mediaType === 'video' || currentItem?.type === 'video') && (
               <button
                 onClick={() => setIsMuted((p) => !p)}
                 className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white/80"
@@ -209,10 +210,10 @@ export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete,
           onTouchStart={() => setIsPaused(true)}
           onTouchEnd={() => setIsPaused(false)}
         >
-          {currentItem?.type === 'video' ? (
+          {currentItem?.mediaType === 'video' || currentItem?.type === 'video' ? (
             <video
               ref={videoRef}
-              src={currentItem.url}
+              src={currentItem?.mediaUrl || currentItem?.url}
               autoPlay
               playsInline
               muted={isMuted}
@@ -223,7 +224,7 @@ export default function StoryViewerModal({ storyGroup, onClose, onStoryComplete,
             />
           ) : (
             <img
-              src={currentItem?.url}
+              src={currentItem?.mediaUrl || currentItem?.url}
               alt="Story snap"
               className="w-full h-full object-cover"
               onError={(e) => {

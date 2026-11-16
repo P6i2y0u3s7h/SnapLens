@@ -42,15 +42,26 @@ export default function StoriesPage() {
   const handleOpenMyStory = () => {
     if (myStories.length > 0) {
       setActiveStoryGroup({
+        id: currentUser?.uid || 'mystory',
         user: {
+          id: currentUser?.uid || 'mystory',
           name: userProfile?.displayName || currentUser?.displayName || 'My Story',
           handle: userProfile?.handle || 'you',
-          avatar: userProfile?.photoURL || currentUser?.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+          avatar:
+            userProfile?.photoURL ||
+            currentUser?.photoURL ||
+            `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser?.uid || 'you'}`,
         },
-        items: myStories,
+        items: myStories.map((s) => ({
+          ...s,
+          mediaUrl: s.mediaUrl || s.url,
+          url: s.mediaUrl || s.url,
+          mediaType: s.mediaType || (s.type === 'video' ? 'video' : 'image'),
+          type: (s.mediaType === 'video' || s.type === 'video') ? 'video' : 'photo',
+        })),
       });
     } else {
-      navigate('/camera');
+      fileInputRef.current?.click();
     }
   };
 
@@ -265,6 +276,67 @@ export default function StoriesPage() {
           </h2>
 
           <div className="flex items-center gap-5 overflow-x-auto no-scrollbar py-2">
+            {/* 1. Current User's Story Circle in Story Tray */}
+            <div
+              onClick={handleOpenMyStory}
+              className="flex flex-col items-center gap-2 flex-shrink-0 cursor-pointer group w-20"
+            >
+              <div
+                className={`relative w-18 h-18 p-[3px] rounded-full transition-transform duration-300 group-hover:scale-110 active:scale-95 ${
+                  myStories.length > 0
+                    ? 'snap-gradient shadow-lg shadow-[#FFFC00]/25'
+                    : 'border-2 border-dashed border-white/30 hover:border-[#FFFC00] bg-white/5'
+                }`}
+              >
+                <div className="w-16 h-16 rounded-full bg-[#0E0E18] p-0.5 overflow-hidden flex items-center justify-center">
+                  {myStories.length > 0 ? (
+                    myStories[0].type === 'video' || myStories[0].mediaType === 'video' ? (
+                      <div className="relative w-full h-full">
+                        <video
+                          src={myStories[0].mediaUrl || myStories[0].url}
+                          className="w-full h-full object-cover"
+                          muted
+                        />
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                          <Film className="w-4 h-4 text-[#FFFC00]" />
+                        </div>
+                      </div>
+                    ) : (
+                      <img
+                        src={myStories[0].mediaUrl || myStories[0].url}
+                        alt="My Story"
+                        className="w-full h-full object-cover"
+                      />
+                    )
+                  ) : (
+                    <img
+                      src={
+                        userProfile?.photoURL ||
+                        currentUser?.photoURL ||
+                        `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser?.uid || 'you'}`
+                      }
+                      alt="Your Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </div>
+
+                <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#FFFC00] text-black flex items-center justify-center shadow-md border-2 border-[#0A0A0F]">
+                  <Plus className="w-3 h-3 stroke-[3]" />
+                </div>
+              </div>
+
+              <div className="w-full text-center">
+                <span className="text-xs font-bold text-white group-hover:text-[#FFFC00] transition-colors truncate block max-w-full">
+                  My Story
+                </span>
+                <span className="text-[10px] text-white/50 block font-mono -mt-0.5">
+                  {myStories.length > 0 ? `${myStories.length} active` : 'Add Snap'}
+                </span>
+              </div>
+            </div>
+
+            {/* 2. Friends' Stories Circles in Tray */}
             {friendStories.map((friend) => (
               <div
                 key={friend.id}
@@ -313,21 +385,21 @@ export default function StoriesPage() {
             ))}
 
             {friendStories.length === 0 && (
-              <div className="py-6 px-5 rounded-2xl bg-white/5 border border-white/10 text-center w-full flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-3 text-left">
-                  <div className="w-10 h-10 rounded-full bg-[#FFFC00]/10 border border-[#FFFC00]/20 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-5 h-5 text-[#FFFC00]" />
+              <div className="py-4 px-4 rounded-2xl bg-white/5 border border-white/10 text-center flex-1 min-w-[240px] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 text-left">
+                  <div className="w-8 h-8 rounded-full bg-[#FFFC00]/10 border border-[#FFFC00]/20 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-4 h-4 text-[#FFFC00]" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-white">No Active Friend Stories</h4>
-                    <p className="text-[11px] text-white/50">When your accepted friends post a snap, their 24h stories will appear here.</p>
+                    <h4 className="text-xs font-bold text-white">Friends' Stories</h4>
+                    <p className="text-[10px] text-white/50">When friends upload snaps, they show here.</p>
                   </div>
                 </div>
                 <button
                   onClick={() => navigate('/add-friends')}
-                  className="glass-pill px-4 py-2 text-xs font-bold text-[#FFFC00] hover:border-[#FFFC00]/40 flex-shrink-0"
+                  className="glass-pill px-3 py-1.5 text-[11px] font-bold text-[#FFFC00] hover:border-[#FFFC00]/40 flex-shrink-0"
                 >
-                  Find Friends
+                  Add Friends
                 </button>
               </div>
             )}
