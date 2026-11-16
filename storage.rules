@@ -29,8 +29,8 @@ service firebase.storage {
 
     // Ephemeral 24h Stories (Photos & Videos)
     match /stories/{userId}/{fileName} {
-      // Allow public read for media playback in img/video elements
-      allow read: if true;
+      // Allow authenticated read for users and authorized friends to stream media
+      allow read: if isAuthenticated();
 
       // Allow upload only if owner and valid content type & size
       allow write: if isOwner(userId) && (

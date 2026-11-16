@@ -115,6 +115,22 @@ export function useStories() {
     }
   }, []);
 
+  // Pre-seed friendsMap from chat storage so friends are instantly recognized on mount
+  useEffect(() => {
+    try {
+      const storedChats = localStorage.getItem('snaplens_chats_v2');
+      if (storedChats) {
+        const parsed = JSON.parse(storedChats);
+        (parsed || []).forEach((f) => {
+          const fid = f.id || f.uid || f.friendId;
+          if (fid && !isDemoStory(f)) {
+            friendsMapRef.current.set(fid, f);
+          }
+        });
+      }
+    } catch {}
+  }, []);
+
   // Synchronize state from cloud stories + friends
   const syncStoriesState = useCallback(
     (allStories, friendsList) => {
@@ -125,14 +141,29 @@ export function useStories() {
         currentUser?.id;
       const now = Date.now();
 
-      // 1. Build friends lookup map
-      const friendMap = new Map();
+      // 1. Build friends lookup map: preserve known friends and merge with latest
+      const friendMap = new Map(friendsMapRef.current);
       (friendsList || []).forEach((f) => {
         const fid = f.id || f.friendId || f.uid;
         if (fid && !isDemoStory(f)) {
           friendMap.set(fid, f);
         }
       });
+
+      // Also ensure any friends from chat storage are included
+      try {
+        const storedChats = localStorage.getItem('snaplens_chats_v2');
+        if (storedChats) {
+          const parsed = JSON.parse(storedChats);
+          (parsed || []).forEach((f) => {
+            const fid = f.id || f.uid || f.friendId;
+            if (fid && !isDemoStory(f) && !friendMap.has(fid)) {
+              friendMap.set(fid, f);
+            }
+          });
+        }
+      } catch {}
+
       friendsMapRef.current = friendMap;
 
       // 2. Separate current user's stories and friends' stories
@@ -278,7 +309,11 @@ export function useStories() {
     if (effectiveUid) {
       unsubFriends = subscribeToFriendsInCloud(effectiveUid, (friends) => {
         const validFriends = (friends || []).filter((f) => !isDemoStory(f));
-        syncStoriesState(rawCloudStoriesRef.current, validFriends);
+        validFriends.forEach((f) => {
+          const fid = f.id || f.friendId || f.uid;
+          if (fid) friendsMapRef.current.set(fid, f);
+        });
+        syncStoriesState(rawCloudStoriesRef.current, Array.from(friendsMapRef.current.values()));
       });
     }
 

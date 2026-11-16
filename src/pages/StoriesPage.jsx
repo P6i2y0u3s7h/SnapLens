@@ -370,7 +370,7 @@ export default function StoriesPage() {
                     className="text-xs font-semibold text-white/80 hover:text-[#FFFC00] transition-colors truncate block max-w-full hover:underline"
                     title={`View @${friend.user.handle || 'user'}`}
                   >
-                    {friend.user.name.split(' ')[0]}
+                    {(friend.user?.name || 'Friend').split(' ')[0]}
                   </span>
                   {friend.user?.handle && (
                     <span className="text-[10px] text-white/40 block truncate font-mono -mt-0.5">

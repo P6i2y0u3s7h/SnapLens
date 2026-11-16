@@ -307,10 +307,13 @@ export async function uploadStoryToCloud({
   onProgress = null,
 }) {
   const effectiveUserId =
-    user?.uid ||
-    user?.id ||
     auth?.currentUser?.uid ||
-    'user_' + Date.now();
+    user?.uid ||
+    user?.id;
+
+  if (!effectiveUserId) {
+    throw new Error('You must be logged in with a valid account to upload a story.');
+  }
   const userName =
     user?.displayName ||
     user?.name ||
@@ -1154,82 +1157,247 @@ export function subscribeToSentFriendRequestsInCloud(currentUserId, onUpdate) {
 }
 
 /**
- * Subscribes to user friends in real-time from Firestore
+ * Subscribes to user friends in real-time from Firestore.
+ * Listens bilaterally across 'friends' and 'friendships' to ensure 
+ * all accepted friendships are discovered regardless of who initiated.
  */
 export function subscribeToFriendsInCloud(currentUserId, onUpdate) {
-  if (!isFirebaseConfigured || !db || !currentUserId) return () => {};
+  if (!isFirebaseConfigured || !db || !currentUserId) {
+    if (onUpdate) onUpdate([]);
+    return () => {};
+  }
 
   try {
     const friendsRef = collection(db, 'friends');
-    const q = query(friendsRef, where('userId', '==', currentUserId));
+    const friendshipsRef = collection(db, 'friendships');
+    const friendsById = new Map();
 
-    return onSnapshot(
-      q,
-      async (snapshot) => {
-        const friendIds = [];
+    const notifyUpdate = async () => {
+      if (friendsById.size === 0) {
+        if (onUpdate) onUpdate([]);
+        return;
+      }
+
+      // 1. Immediately emit with available data so story listener is never blocked
+      const list = Array.from(friendsById.values());
+      if (onUpdate) onUpdate(list);
+
+      // 2. In the background, enrich any friend missing displayName/photoURL from users/{id}
+      const needsEnrichment = list.filter((f) => !f.enriched && f.id);
+      if (needsEnrichment.length > 0) {
+        let changed = false;
+        await Promise.all(
+          needsEnrichment.map(async (f) => {
+            try {
+              const uSnap = await getDoc(doc(db, 'users', f.id));
+              if (uSnap.exists()) {
+                const u = uSnap.data();
+                friendsById.set(f.id, {
+                  ...f,
+                  name: u.displayName || f.name,
+                  handle: u.handle || f.handle,
+                  avatar: u.photoURL || f.avatar,
+                  streak: u.streakCount || f.streak,
+                  snapScore: u.snapScore || f.snapScore,
+                  enriched: true,
+                });
+                changed = true;
+              } else {
+                f.enriched = true;
+              }
+            } catch {
+              f.enriched = true;
+            }
+          })
+        );
+        if (changed && onUpdate) {
+          onUpdate(Array.from(friendsById.values()));
+        }
+      }
+    };
+
+    // 1. Query: friends where userId == currentUserId (friend is friendId)
+    const q1 = query(friendsRef, where('userId', '==', currentUserId));
+    const unsub1 = onSnapshot(
+      q1,
+      (snapshot) => {
         snapshot.forEach((d) => {
           const data = d.data();
-          if (data.friendId) {
-            friendIds.push({
-              friendId: data.friendId,
-              streak: data.streak || 0,
+          const fid = data.friendId;
+          if (fid && fid !== currentUserId) {
+            const existing = friendsById.get(fid) || {};
+            friendsById.set(fid, {
+              id: fid,
+              uid: fid,
+              friendId: fid,
+              name: data.friendName || existing.name || 'Snap Friend',
+              handle: data.friendHandle || existing.handle || fid.substring(0, 8),
+              avatar: data.friendAvatar || existing.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${fid}`,
+              streak: data.streak || existing.streak || 0,
+              snapScore: existing.snapScore || 500,
+              status: 'opened',
+              lastInteraction: 'Friends',
+              lastInteractionTime: 'Active',
+              messages: existing.messages || [],
+              enriched: existing.enriched || false,
             });
           }
         });
+        notifyUpdate();
+      },
+      (err) => console.warn('Friends query 1 warning:', err)
+    );
 
-        if (friendIds.length === 0) {
-          onUpdate([]);
-          return;
-        }
+    // 2. Query: friends where friendId == currentUserId (friend is userId)
+    const q2 = query(friendsRef, where('friendId', '==', currentUserId));
+    const unsub2 = onSnapshot(
+      q2,
+      (snapshot) => {
+        snapshot.forEach((d) => {
+          const data = d.data();
+          const fid = data.userId;
+          if (fid && fid !== currentUserId) {
+            const existing = friendsById.get(fid) || {};
+            friendsById.set(fid, {
+              id: fid,
+              uid: fid,
+              friendId: fid,
+              name: data.userName || existing.name || 'Snap Friend',
+              handle: data.userHandle || existing.handle || fid.substring(0, 8),
+              avatar: data.userAvatar || existing.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${fid}`,
+              streak: data.streak || existing.streak || 0,
+              snapScore: existing.snapScore || 500,
+              status: 'opened',
+              lastInteraction: 'Friends',
+              lastInteractionTime: 'Active',
+              messages: existing.messages || [],
+              enriched: existing.enriched || false,
+            });
+          }
+        });
+        notifyUpdate();
+      },
+      (err) => console.warn('Friends query 2 warning:', err)
+    );
 
-        const friendsData = await Promise.all(
-          friendIds.map(async ({ friendId, streak }) => {
-            try {
-              const userSnap = await getDoc(doc(db, 'users', friendId));
-              if (userSnap.exists()) {
-                const u = userSnap.data();
-                return {
-                  id: friendId,
-                  uid: friendId,
-                  name: u.displayName || 'Snap Friend',
-                  handle: u.handle || friendId.substring(0, 8),
-                  avatar: u.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${friendId}`,
-                  streak: streak || u.streakCount || 0,
-                  snapScore: u.snapScore || 500,
-                  status: 'opened',
-                  lastInteraction: 'Friends',
-                  lastInteractionTime: 'Active',
-                  messages: [],
-                };
-              }
-            } catch (e) {
-              console.warn('Error fetching friend user doc:', e);
-            }
-            return {
-              id: friendId,
-              uid: friendId,
+    // 3. Query: friendships where user1Id == currentUserId
+    const q3 = query(friendshipsRef, where('user1Id', '==', currentUserId));
+    const unsub3 = onSnapshot(
+      q3,
+      (snapshot) => {
+        snapshot.forEach((d) => {
+          const data = d.data();
+          const fid = data.user2Id;
+          if (fid && fid !== currentUserId && !friendsById.has(fid)) {
+            friendsById.set(fid, {
+              id: fid,
+              uid: fid,
+              friendId: fid,
               name: 'Snap Friend',
-              handle: friendId.substring(0, 8),
-              avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${friendId}`,
-              streak: streak || 1,
+              handle: fid.substring(0, 8),
+              avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${fid}`,
+              streak: 1,
+              snapScore: 500,
               status: 'opened',
               lastInteraction: 'Friends',
               lastInteractionTime: 'Active',
               messages: [],
-            };
-          })
-        );
-
-        onUpdate(friendsData);
+              enriched: false,
+            });
+          }
+        });
+        notifyUpdate();
       },
-      (err) => {
-        console.warn('Friends snapshot error:', err);
-      }
+      (err) => console.warn('Friendships query 1 warning:', err)
     );
+
+    // 4. Query: friendships where user2Id == currentUserId
+    const q4 = query(friendshipsRef, where('user2Id', '==', currentUserId));
+    const unsub4 = onSnapshot(
+      q4,
+      (snapshot) => {
+        snapshot.forEach((d) => {
+          const data = d.data();
+          const fid = data.user1Id;
+          if (fid && fid !== currentUserId && !friendsById.has(fid)) {
+            friendsById.set(fid, {
+              id: fid,
+              uid: fid,
+              friendId: fid,
+              name: 'Snap Friend',
+              handle: fid.substring(0, 8),
+              avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${fid}`,
+              streak: 1,
+              snapScore: 500,
+              status: 'opened',
+              lastInteraction: 'Friends',
+              lastInteractionTime: 'Active',
+              messages: [],
+              enriched: false,
+            });
+          }
+        });
+        notifyUpdate();
+      },
+      (err) => console.warn('Friendships query 2 warning:', err)
+    );
+
+    return () => {
+      unsub1();
+      unsub2();
+      unsub3();
+      unsub4();
+    };
   } catch (err) {
     console.warn('Subscribe friends error:', err);
     return () => {};
   }
+}
+
+/**
+ * Fetches all accepted friend IDs for a user (one-shot lookup across friends & friendships)
+ */
+export async function fetchActiveFriendIdsFromCloud(currentUserId) {
+  if (!isFirebaseConfigured || !db || !currentUserId) return new Set();
+
+  const friendIds = new Set();
+  try {
+    const friendsRef = collection(db, 'friends');
+    const [snap1, snap2] = await Promise.all([
+      getDocs(query(friendsRef, where('userId', '==', currentUserId))).catch(() => null),
+      getDocs(query(friendsRef, where('friendId', '==', currentUserId))).catch(() => null),
+    ]);
+
+    snap1?.forEach((d) => {
+      const fid = d.data()?.friendId;
+      if (fid && fid !== currentUserId) friendIds.add(fid);
+    });
+
+    snap2?.forEach((d) => {
+      const fid = d.data()?.userId;
+      if (fid && fid !== currentUserId) friendIds.add(fid);
+    });
+
+    const friendshipsRef = collection(db, 'friendships');
+    const [snap3, snap4] = await Promise.all([
+      getDocs(query(friendshipsRef, where('user1Id', '==', currentUserId))).catch(() => null),
+      getDocs(query(friendshipsRef, where('user2Id', '==', currentUserId))).catch(() => null),
+    ]);
+
+    snap3?.forEach((d) => {
+      const fid = d.data()?.user2Id;
+      if (fid && fid !== currentUserId) friendIds.add(fid);
+    });
+
+    snap4?.forEach((d) => {
+      const fid = d.data()?.user1Id;
+      if (fid && fid !== currentUserId) friendIds.add(fid);
+    });
+  } catch (err) {
+    console.warn('fetchActiveFriendIdsFromCloud error:', err);
+  }
+
+  return friendIds;
 }
 
 // ─────────────────────────────────────────────────────────────────
