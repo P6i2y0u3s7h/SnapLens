@@ -416,23 +416,18 @@ export default function ChatPage() {
     return f.name.toLowerCase().includes(q) || f.handle.toLowerCase().includes(q);
   });
 
-  // Received snaps across all friends (unread or replay available)
+  // Received unread snaps across all friends
   const receivedSnaps = useMemo(() => {
     const list = [];
     friends.forEach((friend) => {
       (friend.messages || []).forEach((msg) => {
         if (msg.sender === 'them' && msg.type === 'snap') {
           const isUnread = !msg.opened && (msg.snapUrl || msg.originalSnapUrl);
-          const hasReplay =
-            msg.opened &&
-            !msg.replayUsed &&
-            (msg.replayCount || 0) < 1 &&
-            (msg.snapUrl || msg.originalSnapUrl);
-          if (isUnread || hasReplay) {
+          if (isUnread) {
             list.push({
               friend,
               message: msg,
-              isReplayAvailable: hasReplay,
+              isReplayAvailable: false,
             });
           }
         }
@@ -935,9 +930,7 @@ export default function ChatPage() {
                                   : 'bg-[#FFFC00]/15 border border-[#FFFC00]/30 hover:border-[#FFFC00]/50 shadow-[#FFFC00]/5'
                                 : !msg.opened
                                 ? 'bg-gradient-to-r from-red-500/25 via-pink-500/20 to-purple-500/25 border border-red-500/40 hover:scale-105 active:scale-95 shadow-red-500/10'
-                                : !msg.replayUsed && (msg.replayCount || 0) < 1 && (msg.snapUrl || msg.originalSnapUrl)
-                                ? 'bg-gradient-to-r from-amber-500/20 via-[#FFFC00]/15 to-yellow-500/10 border border-[#FFFC00]/40 hover:border-[#FFFC00] hover:scale-105 active:scale-95 shadow-lg shadow-[#FFFC00]/10'
-                                : 'bg-white/5 border border-white/10 opacity-70'
+                                : 'bg-white/5 border border-white/10 opacity-70 hover:opacity-100'
                             }`}
                           >
                             <div className="flex items-center gap-3 min-w-0">
@@ -949,8 +942,6 @@ export default function ChatPage() {
                                       : 'bg-[#FFFC00] text-black shadow-md shadow-[#FFFC00]/25'
                                     : !msg.opened
                                     ? 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30'
-                                    : !msg.replayUsed && (msg.replayCount || 0) < 1 && (msg.snapUrl || msg.originalSnapUrl)
-                                    ? 'bg-[#FFFC00] text-black shadow-md shadow-[#FFFC00]/30'
                                     : 'bg-white/10 text-white/50'
                                 }`}
                               >
@@ -958,8 +949,6 @@ export default function ChatPage() {
                                   msg.opened ? <Eye className="w-5 h-5" /> : <Send className="w-4 h-4 ml-0.5" />
                                 ) : !msg.opened ? (
                                   <Play className="w-5 h-5 fill-current ml-0.5" />
-                                ) : !msg.replayUsed && (msg.replayCount || 0) < 1 && (msg.snapUrl || msg.originalSnapUrl) ? (
-                                  <RotateCcw className="w-5 h-5" />
                                 ) : (
                                   <Eye className="w-5 h-5" />
                                 )}
@@ -975,9 +964,7 @@ export default function ChatPage() {
                                       : 'Photo Snap Delivered'
                                     : !msg.opened
                                     ? 'New Disappearing Snap'
-                                    : !msg.replayUsed && (msg.replayCount || 0) < 1 && (msg.snapUrl || msg.originalSnapUrl)
-                                    ? 'Replay Available 🔄'
-                                    : 'Snap Viewed'}
+                                    : 'Snap Opened'}
                                 </span>
                                 <span className="text-[11px] text-white/60 block truncate">
                                   {isMe
@@ -986,9 +973,7 @@ export default function ChatPage() {
                                       : 'Delivered • Tap to preview'
                                     : !msg.opened
                                     ? 'Tap to view (Timed) 🔥'
-                                    : !msg.replayUsed && (msg.replayCount || 0) < 1 && (msg.snapUrl || msg.originalSnapUrl)
-                                    ? 'Tap to Replay Snap (1x)'
-                                    : 'Replay Used 🔒 • Disappeared'}
+                                    : 'Opened • ' + (msg.time || 'Just now')}
                                 </span>
                                 {msg.savedToMemories && (
                                   <span className="inline-flex items-center gap-1 text-[10px] text-[#FFFC00] font-bold mt-0.5">
@@ -997,19 +982,6 @@ export default function ChatPage() {
                                 )}
                               </div>
                             </div>
-
-                            {!isMe && msg.opened && !msg.replayUsed && (msg.replayCount || 0) < 1 && (msg.snapUrl || msg.originalSnapUrl) && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleTriggerReplay(activeFriend.id, msg);
-                                }}
-                                className="px-2.5 py-1 rounded-full bg-[#FFFC00] text-black font-extrabold text-[10px] flex items-center gap-1 shadow-md shadow-[#FFFC00]/20 flex-shrink-0 hover:scale-105 active:scale-95"
-                              >
-                                <RotateCcw className="w-3 h-3" />
-                                <span>Replay</span>
-                              </button>
-                            )}
                           </div>
                         ) : msg.mediaUrl ? (
                           /* Standard Media Attachment */
